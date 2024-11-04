@@ -9,15 +9,36 @@ import SwiftUI
 import MapKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = MapViewModel()
+    @ObservedObject private var mapViewModel = MapViewModel()
+    @State private var selectedOverlay: IdentifiableOverlay? = nil
 
     var body: some View {
-        MapView()
-            .environmentObject(viewModel)
-            .ignoresSafeArea()
+        ZStack {
+            MapView(
+                overlays: $mapViewModel.overlays,
+                initialRegion: mapViewModel.region,
+                onRegionChange: { newRegion in
+                    mapViewModel.loadVisibleOverlaysIfNeeded(for: newRegion)
+                },
+                onOverlayTapped: { overlay in
+                    withAnimation {
+                        selectedOverlay = overlay
+                    }
+                }
+            )
             .onAppear {
-                viewModel.checkLocationAuthorization()
+                mapViewModel.loadGeoJSON()
             }
+            
+            if let overlay = selectedOverlay {
+                OverlayDetailView(overlay: overlay) {
+                    withAnimation {
+                        selectedOverlay = nil // Dismiss the card when tapped
+                    }
+                }
+                .transition(.move(edge: .bottom))
+            }
+        }
     }
 }
 
