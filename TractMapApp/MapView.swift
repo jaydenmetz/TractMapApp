@@ -62,7 +62,15 @@ struct MapView: UIViewRepresentable {
             for overlay in mapView.overlays {
                 if let polygonRenderer = mapView.renderer(for: overlay) as? MKPolygonRenderer,
                    polygonRenderer.path.contains(CGPoint(x: tapPoint.x, y: tapPoint.y)) {
-                    if let identifiableOverlay = parent.overlays.first(where: { $0.overlay as? MKPolygon == overlay }) {
+                    if let identifiableOverlay = parent.overlays.first(where: {
+                        if let polygon = $0.overlay as? MKPolygon {
+                            return polygon.boundingMapRect.origin.x == overlay.boundingMapRect.origin.x &&
+                                   polygon.boundingMapRect.origin.y == overlay.boundingMapRect.origin.y &&
+                                   polygon.boundingMapRect.size.width == overlay.boundingMapRect.size.width &&
+                                   polygon.boundingMapRect.size.height == overlay.boundingMapRect.size.height
+                        }
+                        return false
+                    }) {
                         onOverlayTapped(identifiableOverlay) // Trigger the callback with the overlay details
                     }
                     break
