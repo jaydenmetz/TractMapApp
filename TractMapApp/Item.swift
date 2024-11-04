@@ -2,17 +2,15 @@
 //  Item.swift
 //  TractMapApp
 //
-//  Created by Jayden Metz on 10/31/24.
+//  Created by Jayden Metz on 11/1/24.
 //
 
 import Foundation
-import SwiftData
+import CoreLocation
 
-@Model
-final class Item {
-    var timestamp: Date
-    
-    init(timestamp: Date) {
-        self.timestamp = timestamp
-    }
+struct Item: Identifiable {
+    let id = UUID()
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    let centroid: CLLocationCoordinate2D // Optional if it represents a center point for the item
 }
