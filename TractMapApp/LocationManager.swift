@@ -10,9 +10,7 @@ import CoreLocation
 
 class LocationManager: NSObject, ObservableObject {
     private let locationManager = CLLocationManager()
-    @Published var lastLocation: CLLocationCoordinate2D? // Updated location
-
-    private var hasSetInitialLocation = false // Flag to check if the initial location is set
+    @Published var lastLocation: CLLocationCoordinate2D? // Provide the latest location
 
     override init() {
         super.init()
@@ -22,7 +20,6 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     func requestCurrentLocation() {
-        hasSetInitialLocation = false // Allow manual reset of current location if requested
         locationManager.startUpdatingLocation()
     }
 }
@@ -30,20 +27,14 @@ class LocationManager: NSObject, ObservableObject {
 extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let newLocation = locations.last else { return }
-
-        if !hasSetInitialLocation {
-            lastLocation = newLocation.coordinate
-            print("Initial location set to: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
-
-            // Stop updating location after getting the initial location
-            hasSetInitialLocation = true
-            locationManager.stopUpdatingLocation()
-        } else {
-            print("Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
-        }
+        lastLocation = newLocation.coordinate
+        print("Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
+        
+        // Stop updating if only one-shot request is needed
+        locationManager.stopUpdatingLocation()
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Failed to find user's location: \(error.localizedDescription)")
+        print("Failed to get location: \(error.localizedDescription)")
     }
 }

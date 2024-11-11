@@ -9,25 +9,33 @@ import SwiftUI
 import MapKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = MapViewModel() // Correctly initialize the view model
+    @StateObject private var viewModel = MapViewModel()
+    @State private var recenterTrigger = false
 
     var body: some View {
         ZStack {
-            MapView(
-                region: $viewModel.visibleRegion,
-                overlays: viewModel.overlays,
-                onRegionChange: { newRegion in
-                    viewModel.updateVisibleContent(for: newRegion)
-                }
-            )
-            .edgesIgnoringSafeArea(.all)
-            
+            if let region = viewModel.visibleRegion {
+                MapView(
+                    region: .constant(region),
+                    overlays: viewModel.overlays,
+                    onRegionChange: { newRegion in
+                        viewModel.updateVisibleContent(for: newRegion)
+                    },
+                    recenterTrigger: $recenterTrigger
+                )
+                .edgesIgnoringSafeArea(.all)
+            } else {
+                Text("Loading map...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
                     Button(action: {
-                        viewModel.centerToCurrentLocation() // Snap to current location
+                        viewModel.centerToCurrentLocation()
+                        recenterTrigger.toggle()
                     }) {
                         Image(systemName: "location.fill")
                             .foregroundColor(.white)
@@ -41,7 +49,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            viewModel.loadGeoJSONOverlays() // Load overlays once on launch
+            viewModel.loadGeoJSONOverlays()
         }
     }
 }

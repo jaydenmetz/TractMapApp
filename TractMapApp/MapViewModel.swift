@@ -10,22 +10,18 @@ import MapKit
 import CoreLocation
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var visibleRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 0, longitude: 0), // Placeholder for initialization
-        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-    )
-    
+    @Published var visibleRegion: MKCoordinateRegion? // Make it optional
     @Published var overlays: [MKPolygon] = []
-    
+
     private var geoJSONOverlays: [MKPolygon] = []
     private var locationManager = CLLocationManager()
-    private var initialLocationSet = false
     
     override init() {
         super.init()
         locationManager.delegate = self
         locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()  // Start location updates
+        locationManager.startUpdatingLocation()
+        loadGeoJSONOverlays()
     }
 
     func loadGeoJSONOverlays() {
@@ -37,16 +33,17 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         do {
             let data = try Data(contentsOf: filePath)
             let features = try MKGeoJSONDecoder().decode(data)
-            
+
             for feature in features {
                 if let geoFeature = feature as? MKGeoJSONFeature {
                     for geometry in geoFeature.geometry {
-                        if let polygonOverlay = geometry as? MKPolygon {
-                            geoJSONOverlays.append(polygonOverlay)
-                        } else if let multiPolygonOverlay = geometry as? MKMultiPolygon {
-                            geoJSONOverlays.append(contentsOf: multiPolygonOverlay.polygons)
+                        if let polygon = geometry as? MKPolygon {
+                            geoJSONOverlays.append(polygon)
+                        } else if let multiPolygon = geometry as? MKMultiPolygon {
+                            geoJSONOverlays.append(contentsOf: multiPolygon.polygons)
+                            print("Loaded \(multiPolygon.polygons.count) polygons from MKMultiPolygon.")
                         } else {
-                            print("Unsupported geometry type: \(geometry)")
+                            print("Unsupported geometry type: \(type(of: geometry))")
                         }
                     }
                 }
@@ -59,9 +56,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func updateVisibleContent(for region: MKCoordinateRegion) {
         let visibleMapRect = MKMapRect(region: region)
-        
         let visibleOverlays = geoJSONOverlays.filter { $0.boundingMapRect.intersects(visibleMapRect) }
-
+        
         DispatchQueue.main.async {
             self.overlays = visibleOverlays
             print("Updated visible overlays: \(visibleOverlays.count)")
@@ -86,13 +82,12 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
 
-        if !initialLocationSet {
+        if visibleRegion == nil { // Only set the initial location if visibleRegion is not set
             DispatchQueue.main.async {
                 self.visibleRegion = MKCoordinateRegion(
                     center: location.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                 )
-                self.initialLocationSet = true
                 print("Initial location set to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             }
         }
