@@ -11,7 +11,7 @@ import CoreLocation
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var visibleRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194), // Default location (San Francisco)
+        center: CLLocationCoordinate2D(latitude: 0, longitude: 0), // Placeholder for initialization
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
     
@@ -19,12 +19,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     private var geoJSONOverlays: [MKPolygon] = []
     private var locationManager = CLLocationManager()
+    private var initialLocationSet = false
     
     override init() {
         super.init()
         locationManager.delegate = self
         locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
+        locationManager.startUpdatingLocation()  // Start location updates
     }
 
     func loadGeoJSONOverlays() {
@@ -42,10 +43,15 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     for geometry in geoFeature.geometry {
                         if let polygonOverlay = geometry as? MKPolygon {
                             geoJSONOverlays.append(polygonOverlay)
+                        } else if let multiPolygonOverlay = geometry as? MKMultiPolygon {
+                            geoJSONOverlays.append(contentsOf: multiPolygonOverlay.polygons)
+                        } else {
+                            print("Unsupported geometry type: \(geometry)")
                         }
                     }
                 }
             }
+            print("GeoJSON Overlays Loaded: \(geoJSONOverlays.count) polygons.")
         } catch {
             print("Failed to parse GeoJSON: \(error)")
         }
@@ -58,15 +64,42 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
         DispatchQueue.main.async {
             self.overlays = visibleOverlays
+            print("Updated visible overlays: \(visibleOverlays.count)")
+        }
+    }
+
+    func centerToCurrentLocation() {
+        if let currentLocation = locationManager.location {
+            DispatchQueue.main.async {
+                self.visibleRegion = MKCoordinateRegion(
+                    center: currentLocation.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                )
+                print("Centered to current location: \(currentLocation.coordinate.latitude), \(currentLocation.coordinate.longitude)")
+            }
+        } else {
+            print("Current location unavailable.")
         }
     }
 
     // CLLocationManagerDelegate methods
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        DispatchQueue.main.async {
-            self.visibleRegion.center = location.coordinate
+
+        if !initialLocationSet {
+            DispatchQueue.main.async {
+                self.visibleRegion = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                )
+                self.initialLocationSet = true
+                print("Initial location set to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            }
         }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Failed to find user's location: \(error.localizedDescription)")
     }
 }
 
