@@ -69,28 +69,28 @@ struct MapView: UIViewRepresentable {
                     switch title {
                     case "The Northwest":
                         print("Setting color for The Northwest")
-                        renderer.fillColor = UIColor(red: 0.67, green: 0.83, blue: 0.45, alpha: 0.5) // Greenish
+                        renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5) // #c9f1c4
                     case "North Bakersfield":
                         print("Setting color for North Bakersfield")
-                        renderer.fillColor = UIColor(red: 0.68, green: 0.77, blue: 0.94, alpha: 0.5) // Blueish
+                        renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5) // #e1c0fc
                     case "Central Bakersfield":
                         print("Setting color for Central Bakersfield")
-                        renderer.fillColor = UIColor(red: 0.97, green: 0.77, blue: 0.51, alpha: 0.5) // Orange
+                        renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5) // #eadedd
                     case "The Northeast":
                         print("Setting color for The Northeast")
-                        renderer.fillColor = UIColor(red: 0.68, green: 0.95, blue: 0.75, alpha: 0.5) // Light green
+                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // #c5e7e4
                     case "East Bakersfield":
                         print("Setting color for East Bakersfield")
-                        renderer.fillColor = UIColor(red: 0.87, green: 0.76, blue: 0.96, alpha: 0.5) // Purple
+                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // #c5e7e4
                     case "South Bakersfield":
                         print("Setting color for South Bakersfield")
-                        renderer.fillColor = UIColor(red: 0.93, green: 0.87, blue: 0.67, alpha: 0.5) // Yellowish
+                        renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5) // #c8ded7
                     case "The Southeast":
                         print("Setting color for The Southeast")
-                        renderer.fillColor = UIColor(red: 0.84, green: 0.94, blue: 0.66, alpha: 0.5) // Lime
+                        renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5) // #eefac1
                     case "The Southwest":
                         print("Setting color for The Southwest")
-                        renderer.fillColor = UIColor(red: 0.66, green: 0.77, blue: 0.94, alpha: 0.5) // Sky Blue
+                        renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5) // #e1f0c5
                     default:
                         print("Default color applied")
                         renderer.fillColor = UIColor.gray.withAlphaComponent(0.5) // Default gray
