@@ -5,18 +5,27 @@
 //  Created by Jayden Metz on 11/7/24.
 //
 
-import MapKit
 import SwiftUI
+import MapKit
+import CoreLocation
 
-class MapViewModel: ObservableObject {
+class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var visibleRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194), // Default location (San Francisco)
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
     
-    @Published var overlays: [IdentifiableOverlayLabel] = []
+    @Published var overlays: [MKPolygon] = []
     
     private var geoJSONOverlays: [MKPolygon] = []
+    private var locationManager = CLLocationManager()
+    
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.startUpdatingLocation()
+    }
 
     func loadGeoJSONOverlays() {
         guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
@@ -46,10 +55,17 @@ class MapViewModel: ObservableObject {
         let visibleMapRect = MKMapRect(region: region)
         
         let visibleOverlays = geoJSONOverlays.filter { $0.boundingMapRect.intersects(visibleMapRect) }
-            .map { MapOverlayView(overlay: someOverlay) }
 
         DispatchQueue.main.async {
             self.overlays = visibleOverlays
+        }
+    }
+
+    // CLLocationManagerDelegate methods
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        DispatchQueue.main.async {
+            self.visibleRegion.center = location.coordinate
         }
     }
 }
@@ -74,17 +90,5 @@ extension MKMapRect {
             size: MKMapSize(width: abs(topLeftPoint.x - bottomRightPoint.x),
                             height: abs(topLeftPoint.y - bottomRightPoint.y))
         )
-    }
-}
-
-extension MKCoordinateRegion {
-    func contains(coordinate: CLLocationCoordinate2D) -> Bool {
-        let minLat = center.latitude - span.latitudeDelta / 2
-        let maxLat = center.latitude + span.latitudeDelta / 2
-        let minLng = center.longitude - span.longitudeDelta / 2
-        let maxLng = center.longitude + span.longitudeDelta / 2
-
-        return (minLat...maxLat).contains(coordinate.latitude) &&
-               (minLng...maxLng).contains(coordinate.longitude)
     }
 }
