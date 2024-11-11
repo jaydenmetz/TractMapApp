@@ -24,7 +24,12 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         loadGeoJSONOverlays()
     }
 
+    private var isOverlayLoaded = false // Prevent multiple loads
+
     func loadGeoJSONOverlays() {
+        guard !isOverlayLoaded else { return } // Load only once
+        isOverlayLoaded = true
+
         guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
             print("GeoJSON file not found.")
             return
@@ -33,17 +38,36 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         do {
             let data = try Data(contentsOf: filePath)
             let features = try MKGeoJSONDecoder().decode(data)
-
+            
             for feature in features {
                 if let geoFeature = feature as? MKGeoJSONFeature {
+                    // Debugging: Print properties if available
+                    if let properties = geoFeature.properties {
+                        print("GeoFeature properties: \(properties)")
+                    }
+
                     for geometry in geoFeature.geometry {
                         if let polygon = geometry as? MKPolygon {
+                            if let properties = geoFeature.properties as? [String: Any],
+                               let title = properties["LblVal"] as? String {
+                                polygon.title = title // Assign the title if the key exists
+                            } else {
+                                polygon.title = "Unknown" // Default value if key is missing
+                            }
+                            print("Polygon added with title: \(polygon.title ?? "nil")") // Debug
                             geoJSONOverlays.append(polygon)
                         } else if let multiPolygon = geometry as? MKMultiPolygon {
-                            geoJSONOverlays.append(contentsOf: multiPolygon.polygons)
-                            print("Loaded \(multiPolygon.polygons.count) polygons from MKMultiPolygon.")
-                        } else {
-                            print("Unsupported geometry type: \(type(of: geometry))")
+                            for polygon in multiPolygon.polygons {
+                                if let propertiesData = geoFeature.properties,
+                                   let properties = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any],
+                                   let title = properties["LblVal"] as? String {
+                                    polygon.title = title // Assign the title if the key exists
+                                } else {
+                                    polygon.title = "Unknown" // Default value if key is missing
+                                }
+                                print("MultiPolygon added with title: \(polygon.title ?? "nil")") // Debug
+                                geoJSONOverlays.append(polygon)
+                            }
                         }
                     }
                 }
