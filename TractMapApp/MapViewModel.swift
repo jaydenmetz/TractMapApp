@@ -30,30 +30,33 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("Overlays already loaded.")
             return
         }
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
             guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
                 print("GeoJSON file not found.")
                 return
             }
-            
+
             do {
                 let data = try Data(contentsOf: filePath)
+                print("GeoJSON file loaded successfully: \(filePath)")
+                
                 let features = try MKGeoJSONDecoder().decode(data)
                 
                 for feature in features {
                     if let geoFeature = feature as? MKGeoJSONFeature {
+                        print("Processing GeoJSON Feature: \(geoFeature.properties ?? Data())")
                         self.processFeature(geoFeature)
                     }
                 }
-                
+
                 DispatchQueue.main.async {
                     print("GeoJSON Overlays Loaded: \(self.geoJSONOverlays.count) polygons.")
                     self.overlays = Array(self.geoJSONOverlays) // Sync overlays for map
                     self.isOverlaysLoaded = true
                 }
             } catch {
-                print("Failed to parse GeoJSON: \(error)")
+                print("Failed to parse GeoJSON at \(filePath): \(error.localizedDescription)")
             }
         }
     }
@@ -73,7 +76,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     private func addUniqueOverlay(_ polygon: MKPolygon, propertiesData: Data?) {
         configurePolygonTitle(polygon, propertiesData: propertiesData)
         
-        if !geoJSONOverlays.contains(where: { $0.boundingMapRect == polygon.boundingMapRect }) {
+        if !geoJSONOverlays.contains(where: { $0.title == polygon.title }) {
             geoJSONOverlays.insert(polygon)
         }
     }
@@ -113,17 +116,39 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("Current location unavailable.")
         }
     }
-
+    
     func centerMap(on polygon: MKPolygon) {
         let boundingMapRect = polygon.boundingMapRect
-        let edgePadding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
-        
+        let edgePadding = UIEdgeInsets(top: 25, left: 25, bottom: 25, right: 25)
+
         DispatchQueue.main.async {
             let mapView = MKMapView()
-            let region = mapView.mapRectThatFits(boundingMapRect, edgePadding: edgePadding)
-            self.visibleRegion = MKCoordinateRegion(region)
-            print("Centered to overlay: \(polygon.title ?? "Unknown")")
+            let fittedRegion = mapView.mapRectThatFits(boundingMapRect, edgePadding: edgePadding)
+            var validRegion = MKCoordinateRegion(fittedRegion)
+
+            // Clamp values to ensure they're within valid ranges
+            validRegion = self.clampRegion(validRegion)
+
+            if validRegion.center.latitude >= -90, validRegion.center.latitude <= 90,
+               validRegion.center.longitude >= -180, validRegion.center.longitude <= 180 {
+                self.visibleRegion = validRegion
+                print("Centered to overlay: \(polygon.title ?? "Unknown") with region \(validRegion)")
+            } else {
+                print("Skipping invalid region for \(polygon.title ?? "Unknown"): \(validRegion)")
+            }
         }
+    }
+
+    private func clampRegion(_ region: MKCoordinateRegion) -> MKCoordinateRegion {
+        let clampedLatitude = min(max(region.center.latitude, -90.0), 90.0)
+        let clampedLongitude = min(max(region.center.longitude, -180.0), 180.0)
+        let clampedLatitudeDelta = min(max(region.span.latitudeDelta, 0.001), 180.0)
+        let clampedLongitudeDelta = min(max(region.span.longitudeDelta, 0.001), 360.0)
+
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: clampedLatitude, longitude: clampedLongitude),
+            span: MKCoordinateSpan(latitudeDelta: clampedLatitudeDelta, longitudeDelta: clampedLongitudeDelta)
+        )
     }
 
     // CLLocationManagerDelegate methods

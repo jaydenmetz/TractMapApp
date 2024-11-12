@@ -16,12 +16,16 @@ struct ContentView: View {
         ZStack {
             if let region = viewModel.visibleRegion {
                 MapView(
-                    region: .constant(region),
+                    region: Binding(
+                        get: { viewModel.visibleRegion ?? MKCoordinateRegion() },
+                        set: { viewModel.visibleRegion = $0 }
+                    ),
                     overlays: viewModel.overlays,
-                    onRegionChange: { newRegion in
-                        viewModel.updateVisibleContent(for: newRegion)
-                    },
-                    recenterTrigger: $recenterTrigger
+                    recenterTrigger: $recenterTrigger,
+                    onOverlayTapped: { polygon in
+                        viewModel.centerMap(on: polygon)
+                        recenterTrigger.toggle() // Trigger map region update
+                    }
                 )
                 .edgesIgnoringSafeArea(.all)
             } else {
@@ -35,7 +39,9 @@ struct ContentView: View {
                     Spacer()
                     Button(action: {
                         viewModel.centerToCurrentLocation()
-                        recenterTrigger.toggle()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { // Prevent immediate reset
+                            recenterTrigger.toggle()
+                        }
                     }) {
                         Image(systemName: "location.fill")
                             .foregroundColor(.white)

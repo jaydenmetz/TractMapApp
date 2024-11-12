@@ -11,8 +11,8 @@ import MapKit
 struct MapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     var overlays: [MKOverlay]
-    var onRegionChange: (MKCoordinateRegion) -> Void
     @Binding var recenterTrigger: Bool
+    var onOverlayTapped: (MKPolygon) -> Void
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -20,8 +20,6 @@ struct MapView: UIViewRepresentable {
         mapView.showsUserLocation = true
         mapView.setRegion(region, animated: false)
 
-        // Ensure no duplicate gesture recognizers
-        mapView.gestureRecognizers?.forEach { mapView.removeGestureRecognizer($0) }
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapGesture)
 
@@ -36,37 +34,27 @@ struct MapView: UIViewRepresentable {
             }
         }
 
-        // Efficiently update overlays without duplicates
         let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
         let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
 
         let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
         let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
 
-        print("Before Update: \(uiView.overlays.count) overlays on map")
-        print("Adding \(overlaysToAdd.count) overlays, Removing \(overlaysToRemove.count) overlays")
-
         uiView.removeOverlays(overlaysToRemove)
         uiView.addOverlays(overlaysToAdd)
-
-        print("After Update: \(uiView.overlays.count) overlays on map")
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(self, onRegionChange: onRegionChange)
+        Coordinator(self, onOverlayTapped: onOverlayTapped)
     }
 
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
-        var onRegionChange: (MKCoordinateRegion) -> Void
+        var onOverlayTapped: (MKPolygon) -> Void
 
-        init(_ parent: MapView, onRegionChange: @escaping (MKCoordinateRegion) -> Void) {
+        init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon) -> Void) {
             self.parent = parent
-            self.onRegionChange = onRegionChange
-        }
-
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            onRegionChange(mapView.region)
+            self.onOverlayTapped = onOverlayTapped
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -76,15 +64,24 @@ struct MapView: UIViewRepresentable {
                 if let title = polygon.title {
                     print("Creating renderer for: \(title)")
                     switch title {
-                    case "The Northwest": renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5)
-                    case "North Bakersfield": renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5)
-                    case "Central Bakersfield": renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5)
-                    case "The Northeast": renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5)
-                    case "East Bakersfield": renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5)
-                    case "South Bakersfield": renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5)
-                    case "The Southeast": renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5)
-                    case "The Southwest": renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5)
-                    default: renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
+                    case "The Northwest":
+                        renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5) // Light Green
+                    case "North Bakersfield":
+                        renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5) // Light Purple
+                    case "Central Bakersfield":
+                        renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5) // Light Gray
+                    case "The Northeast":
+                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // Light Cyan
+                    case "East Bakersfield":
+                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // Light Cyan
+                    case "South Bakersfield":
+                        renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5) // Soft Aqua
+                    case "The Southeast":
+                        renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5) // Pale Yellow-Green
+                    case "The Southwest":
+                        renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5) // Soft Olive Green
+                    default:
+                        renderer.fillColor = UIColor.gray.withAlphaComponent(0.5) // Default Gray
                     }
                 } else {
                     print("Polygon title is nil")
@@ -108,10 +105,34 @@ struct MapView: UIViewRepresentable {
                 if let polygon = overlay as? MKPolygon,
                    let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
                    renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
+
                     print("Tapped on overlay: \(polygon.title ?? "Unknown")")
+
+                    let mapRect = polygon.boundingMapRect
+                    let centerCoordinate = CLLocationCoordinate2D(
+                        latitude: mapRect.midY.convertToLatitude(),
+                        longitude: mapRect.midX.convertToLongitude()
+                    )
+                    
+                    // Absolute value ensures non-negative spans
+                    let latitudeDelta = abs(mapRect.height.convertToLatitudeDelta())
+                    let longitudeDelta = abs(mapRect.width.convertToLongitudeDelta())
+                    
+                    // Construct region
+                    let region = MKCoordinateRegion(
+                        center: centerCoordinate,
+                        span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+                    )
+                    
+                    // Print the calculated region
+                    print("Calculated MKCoordinateRegion: Center = \(region.center), Span = \(region.span)")
+                    
+                    self.parent.region = region
+                    self.parent.recenterTrigger = true
                     break
                 }
             }
         }
+
     }
 }

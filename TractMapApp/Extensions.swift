@@ -48,3 +48,74 @@ extension MKMapRect {
     }
 }
 
+extension MKCoordinateRegion {
+    init(clamping region: MKCoordinateRegion) {
+        let centerLatitude = min(max(region.center.latitude, -90.0), 90.0)
+        let centerLongitude = min(max(region.center.longitude, -180.0), 180.0)
+        let latitudeDelta = max(0.0001, min(region.span.latitudeDelta, 180.0))
+        let longitudeDelta = max(0.0001, min(region.span.longitudeDelta, 360.0))
+        
+        print("Clamping Region: Center (\(centerLatitude), \(centerLongitude)), Span (\(latitudeDelta), \(longitudeDelta))")
+        
+        self.init(
+            center: CLLocationCoordinate2D(latitude: centerLatitude, longitude: centerLongitude),
+            span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+        )
+    }
+}
+
+extension MKCoordinateRegion {
+    func isValid() -> Bool {
+        return center.latitude >= -90 && center.latitude <= 90 &&
+               center.longitude >= -180 && center.longitude <= 180 &&
+               span.latitudeDelta > 0 && span.latitudeDelta < 180 &&
+               span.longitudeDelta > 0 && span.longitudeDelta < 360
+    }
+}
+
+extension MKCoordinateRegion {
+    init(_ rect: MKMapRect) {
+        let center = CLLocationCoordinate2D(
+            latitude: rect.origin.y + rect.size.height / 2,
+            longitude: rect.origin.x + rect.size.width / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: rect.size.height / MKMapSize.world.height * 180,
+            longitudeDelta: rect.size.width / MKMapSize.world.width * 360
+        )
+        self.init(center: center, span: span)
+    }
+}
+
+extension MKCoordinateRegion {
+    func clampedToValidRange() -> MKCoordinateRegion {
+        let clampedLatitude = min(max(self.center.latitude, -90.0), 90.0)
+        let clampedLongitude = min(max(self.center.longitude, -180.0), 180.0)
+
+        let clampedLatitudeDelta = min(max(self.span.latitudeDelta, 0.01), 180.0)
+        let clampedLongitudeDelta = min(max(self.span.longitudeDelta, 0.01), 360.0)
+
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: clampedLatitude, longitude: clampedLongitude),
+            span: MKCoordinateSpan(latitudeDelta: clampedLatitudeDelta, longitudeDelta: clampedLongitudeDelta)
+        )
+    }
+}
+
+extension Double {
+    func convertToLatitude() -> CLLocationDegrees {
+        MKMapPoint(x: 0, y: self).coordinate.latitude
+    }
+
+    func convertToLongitude() -> CLLocationDegrees {
+        MKMapPoint(x: self, y: 0).coordinate.longitude
+    }
+
+    func convertToLatitudeDelta() -> CLLocationDegrees {
+        MKMapPoint(x: 0, y: self).coordinate.latitude - MKMapPoint(x: 0, y: 0).coordinate.latitude
+    }
+
+    func convertToLongitudeDelta() -> CLLocationDegrees {
+        MKMapPoint(x: self, y: 0).coordinate.longitude - MKMapPoint(x: 0, y: 0).coordinate.longitude
+    }
+}
