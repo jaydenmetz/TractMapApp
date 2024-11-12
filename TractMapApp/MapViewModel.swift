@@ -10,12 +10,12 @@ import MapKit
 import CoreLocation
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var visibleRegion: MKCoordinateRegion? // Make it optional
-    @Published var overlays: [MKPolygon] = []
+    @Published var visibleRegion: MKCoordinateRegion? // Optional for delayed setting
+    @Published var overlays: [MKPolygon] = [] // Updated incrementally
 
     private var geoJSONOverlays: [MKPolygon] = []
     private var locationManager = CLLocationManager()
-    
+
     override init() {
         super.init()
         locationManager.delegate = self
@@ -24,58 +24,59 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         loadGeoJSONOverlays()
     }
 
-    private var isOverlayLoaded = false // Prevent multiple loads
-
     func loadGeoJSONOverlays() {
-        guard !isOverlayLoaded else { return } // Load only once
-        isOverlayLoaded = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
+                print("GeoJSON file not found.")
+                return
+            }
 
-        guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
-            print("GeoJSON file not found.")
-            return
-        }
-
-        do {
-            let data = try Data(contentsOf: filePath)
-            let features = try MKGeoJSONDecoder().decode(data)
-            
-            for feature in features {
-                if let geoFeature = feature as? MKGeoJSONFeature {
-                    // Debugging: Print properties if available
-                    if let properties = geoFeature.properties {
-                        print("GeoFeature properties: \(properties)")
-                    }
-
-                    for geometry in geoFeature.geometry {
-                        if let polygon = geometry as? MKPolygon {
-                            if let properties = geoFeature.properties as? [String: Any],
-                               let title = properties["LblVal"] as? String {
-                                polygon.title = title // Assign the title if the key exists
-                            } else {
-                                polygon.title = "Unknown" // Default value if key is missing
-                            }
-                            print("Polygon added with title: \(polygon.title ?? "nil")") // Debug
-                            geoJSONOverlays.append(polygon)
-                        } else if let multiPolygon = geometry as? MKMultiPolygon {
-                            for polygon in multiPolygon.polygons {
-                                if let propertiesData = geoFeature.properties,
-                                   let properties = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any],
-                                   let title = properties["LblVal"] as? String {
-                                    polygon.title = title // Assign the title if the key exists
-                                } else {
-                                    polygon.title = "Unknown" // Default value if key is missing
-                                }
-                                print("MultiPolygon added with title: \(polygon.title ?? "nil")") // Debug
-                                geoJSONOverlays.append(polygon)
-                            }
-                        }
+            do {
+                let data = try Data(contentsOf: filePath)
+                let features = try MKGeoJSONDecoder().decode(data)
+                
+                for feature in features {
+                    if let geoFeature = feature as? MKGeoJSONFeature {
+                        self.processFeature(geoFeature)
                     }
                 }
+                print("GeoJSON Overlays Loaded: \(self.geoJSONOverlays.count) polygons.")
+            } catch {
+                print("Failed to parse GeoJSON: \(error)")
             }
-            print("GeoJSON Overlays Loaded: \(geoJSONOverlays.count) polygons.")
-        } catch {
-            print("Failed to parse GeoJSON: \(error)")
         }
+    }
+
+    private func processFeature(_ geoFeature: MKGeoJSONFeature) {
+        var newPolygons: [MKPolygon] = []
+
+        for geometry in geoFeature.geometry {
+            if let polygon = geometry as? MKPolygon {
+                configurePolygonTitle(polygon, propertiesData: geoFeature.properties)
+                newPolygons.append(polygon)
+            } else if let multiPolygon = geometry as? MKMultiPolygon {
+                for polygon in multiPolygon.polygons {
+                    configurePolygonTitle(polygon, propertiesData: geoFeature.properties)
+                    newPolygons.append(polygon)
+                }
+            }
+        }
+
+        DispatchQueue.main.async {
+            self.overlays.append(contentsOf: newPolygons)
+            self.geoJSONOverlays.append(contentsOf: newPolygons)
+        }
+    }
+
+    private func configurePolygonTitle(_ polygon: MKPolygon, propertiesData: Data?) {
+        if let propertiesData = propertiesData,
+           let properties = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any],
+           let title = properties["LblVal"] as? String {
+            polygon.title = title
+        } else {
+            polygon.title = "Unknown"
+        }
+        print("Polygon added with title: \(polygon.title ?? "nil")")
     }
 
     func updateVisibleContent(for region: MKCoordinateRegion) {
@@ -99,6 +100,19 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         } else {
             print("Current location unavailable.")
+        }
+    }
+
+    // New Center Function to Focus on Selected Overlay
+    func centerMap(on polygon: MKPolygon) {
+        let boundingMapRect = polygon.boundingMapRect
+        let edgePadding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
+        
+        DispatchQueue.main.async {
+            let mapView = MKMapView()
+            let region = mapView.mapRectThatFits(boundingMapRect, edgePadding: edgePadding)
+            self.visibleRegion = MKCoordinateRegion(region)
+            print("Centered to overlay: \(polygon.title ?? "Unknown")")
         }
     }
 
