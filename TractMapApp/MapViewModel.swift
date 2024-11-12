@@ -10,12 +10,13 @@ import MapKit
 import CoreLocation
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var visibleRegion: MKCoordinateRegion? // Optional for delayed setting
-    @Published var overlays: [MKPolygon] = [] // Updated incrementally
-
-    private var geoJSONOverlays: [MKPolygon] = []
+    @Published var visibleRegion: MKCoordinateRegion?
+    @Published var overlays: [MKPolygon] = []
+    
+    private var geoJSONOverlays: Set<MKPolygon> = [] // Use Set to avoid duplicates
     private var locationManager = CLLocationManager()
-
+    private var isOverlaysLoaded = false // Ensure loading only once
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -23,14 +24,19 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         locationManager.startUpdatingLocation()
         loadGeoJSONOverlays()
     }
-
+    
     func loadGeoJSONOverlays() {
+        guard !isOverlaysLoaded else {
+            print("Overlays already loaded.")
+            return
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
             guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
                 print("GeoJSON file not found.")
                 return
             }
-
+            
             do {
                 let data = try Data(contentsOf: filePath)
                 let features = try MKGeoJSONDecoder().decode(data)
@@ -40,34 +46,38 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                         self.processFeature(geoFeature)
                     }
                 }
-                print("GeoJSON Overlays Loaded: \(self.geoJSONOverlays.count) polygons.")
+                
+                DispatchQueue.main.async {
+                    print("GeoJSON Overlays Loaded: \(self.geoJSONOverlays.count) polygons.")
+                    self.overlays = Array(self.geoJSONOverlays) // Sync overlays for map
+                    self.isOverlaysLoaded = true
+                }
             } catch {
                 print("Failed to parse GeoJSON: \(error)")
             }
         }
     }
-
+    
     private func processFeature(_ geoFeature: MKGeoJSONFeature) {
-        var newPolygons: [MKPolygon] = []
-
         for geometry in geoFeature.geometry {
             if let polygon = geometry as? MKPolygon {
-                configurePolygonTitle(polygon, propertiesData: geoFeature.properties)
-                newPolygons.append(polygon)
+                addUniqueOverlay(polygon, propertiesData: geoFeature.properties)
             } else if let multiPolygon = geometry as? MKMultiPolygon {
                 for polygon in multiPolygon.polygons {
-                    configurePolygonTitle(polygon, propertiesData: geoFeature.properties)
-                    newPolygons.append(polygon)
+                    addUniqueOverlay(polygon, propertiesData: geoFeature.properties)
                 }
             }
         }
-
-        DispatchQueue.main.async {
-            self.overlays.append(contentsOf: newPolygons)
-            self.geoJSONOverlays.append(contentsOf: newPolygons)
+    }
+    
+    private func addUniqueOverlay(_ polygon: MKPolygon, propertiesData: Data?) {
+        configurePolygonTitle(polygon, propertiesData: propertiesData)
+        
+        if !geoJSONOverlays.contains(where: { $0.boundingMapRect == polygon.boundingMapRect }) {
+            geoJSONOverlays.insert(polygon)
         }
     }
-
+    
     private func configurePolygonTitle(_ polygon: MKPolygon, propertiesData: Data?) {
         if let propertiesData = propertiesData,
            let properties = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any],
@@ -78,17 +88,18 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         print("Polygon added with title: \(polygon.title ?? "nil")")
     }
-
+    
     func updateVisibleContent(for region: MKCoordinateRegion) {
         let visibleMapRect = MKMapRect(region: region)
         let visibleOverlays = geoJSONOverlays.filter { $0.boundingMapRect.intersects(visibleMapRect) }
         
         DispatchQueue.main.async {
-            self.overlays = visibleOverlays
+            self.overlays = Array(visibleOverlays)
             print("Updated visible overlays: \(visibleOverlays.count)")
         }
     }
-
+    
+    // Center Functions and Location Handling remain unchanged
     func centerToCurrentLocation() {
         if let currentLocation = locationManager.location {
             DispatchQueue.main.async {
@@ -103,7 +114,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
-    // New Center Function to Focus on Selected Overlay
     func centerMap(on polygon: MKPolygon) {
         let boundingMapRect = polygon.boundingMapRect
         let edgePadding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
@@ -133,28 +143,5 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Failed to find user's location: \(error.localizedDescription)")
-    }
-}
-
-extension MKMapRect {
-    init(region: MKCoordinateRegion) {
-        let topLeft = CLLocationCoordinate2D(
-            latitude: region.center.latitude + region.span.latitudeDelta / 2,
-            longitude: region.center.longitude - region.span.longitudeDelta / 2
-        )
-        let bottomRight = CLLocationCoordinate2D(
-            latitude: region.center.latitude - region.span.latitudeDelta / 2,
-            longitude: region.center.longitude + region.span.longitudeDelta / 2
-        )
-
-        let topLeftPoint = MKMapPoint(topLeft)
-        let bottomRightPoint = MKMapPoint(bottomRight)
-
-        self = MKMapRect(
-            origin: MKMapPoint(x: min(topLeftPoint.x, bottomRightPoint.x),
-                               y: min(topLeftPoint.y, bottomRightPoint.y)),
-            size: MKMapSize(width: abs(topLeftPoint.x - bottomRightPoint.x),
-                            height: abs(topLeftPoint.y - bottomRightPoint.y))
-        )
     }
 }

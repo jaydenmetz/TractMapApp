@@ -19,10 +19,12 @@ struct MapView: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
         mapView.setRegion(region, animated: false)
-        
+
+        // Ensure no duplicate gesture recognizers
+        mapView.gestureRecognizers?.forEach { mapView.removeGestureRecognizer($0) }
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapGesture)
-        
+
         return mapView
     }
 
@@ -34,17 +36,20 @@ struct MapView: UIViewRepresentable {
             }
         }
 
-        // Efficient overlay updates
+        // Efficiently update overlays without duplicates
         let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
         let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
 
         let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
         let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
 
+        print("Before Update: \(uiView.overlays.count) overlays on map")
+        print("Adding \(overlaysToAdd.count) overlays, Removing \(overlaysToRemove.count) overlays")
+
         uiView.removeOverlays(overlaysToRemove)
         uiView.addOverlays(overlaysToAdd)
 
-        print("MapView updated: \(overlaysToAdd.count) overlays added, \(overlaysToRemove.count) removed")
+        print("After Update: \(uiView.overlays.count) overlays on map")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -67,11 +72,9 @@ struct MapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-                
+
                 if let title = polygon.title {
-                    #if DEBUG
-                    debugPrint("Polygon title (debug): \(title)")
-                    #endif
+                    print("Creating renderer for: \(title)")
                     switch title {
                     case "The Northwest": renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5)
                     case "North Bakersfield": renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5)
@@ -84,7 +87,7 @@ struct MapView: UIViewRepresentable {
                     default: renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
                     }
                 } else {
-                    debugPrint("Polygon title is nil")
+                    print("Polygon title is nil")
                     renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
                 }
 
@@ -92,22 +95,21 @@ struct MapView: UIViewRepresentable {
                 renderer.lineWidth = 2
                 return renderer
             }
+
             return MKOverlayRenderer(overlay: overlay)
         }
 
-        // Gesture Handling
-        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: gesture.view)
-            guard let mapView = gesture.view as? MKMapView else { return }
-
-            let mapCoordinate = mapView.convert(point, toCoordinateFrom: mapView)
-            let mapPoint = MKMapPoint(mapCoordinate) // Convert to MKMapPoint
+        @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
+            guard let mapView = gestureRecognizer.view as? MKMapView else { return }
+            let tapPoint = gestureRecognizer.location(in: mapView)
+            let tapCoordinate = mapView.convert(tapPoint, toCoordinateFrom: mapView)
 
             for overlay in mapView.overlays {
-                if let renderer = mapView.renderer(for: overlay) as? MKPolygonRenderer,
-                   let polygon = overlay as? MKPolygon,
-                   renderer.path?.contains(renderer.point(for: mapPoint)) == true {
-                    print("Tapped overlay: \(polygon.title ?? "Unknown")")
+                if let polygon = overlay as? MKPolygon,
+                   let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
+                   renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
+                    print("Tapped on overlay: \(polygon.title ?? "Unknown")")
+                    break
                 }
             }
         }

@@ -2,6 +2,8 @@
 //  MapOverlayRenderer.swift
 //  TractMapApp
 //
+//  Created by Jayden Metz on 11/7/24.
+//
 
 import SwiftUI
 import MapKit
@@ -64,26 +66,20 @@ struct MapOverlayView: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
 
-        // Add tap gesture recognizer for overlay taps
         let tapRecognizer = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapRecognizer)
-        
+
         return mapView
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
         print("Updating MapView with overlays...")
 
-        let existingOverlays = Set(mapView.overlays.map { ObjectIdentifier($0) })
-        let newOverlays = Set(overlays.map { ObjectIdentifier($0) })
+        // Avoid duplicate overlay handling
+        mapView.removeOverlays(mapView.overlays)
+        mapView.addOverlays(overlays)
 
-        let overlaysToRemove = mapView.overlays.filter { !newOverlays.contains(ObjectIdentifier($0)) }
-        let overlaysToAdd = overlays.filter { !existingOverlays.contains(ObjectIdentifier($0)) }
-
-        mapView.removeOverlays(overlaysToRemove)
-        mapView.addOverlays(overlaysToAdd)
-
-        print("Overlays updated: \(overlaysToAdd.count) added, \(overlaysToRemove.count) removed")
+        print("Overlays updated: \(overlays.count) added.")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -113,7 +109,7 @@ struct MapOverlayView: UIViewRepresentable {
             guard let mapView = gestureRecognizer.view as? MKMapView else { return }
             let point = gestureRecognizer.location(in: mapView)
             let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-            
+
             for overlay in mapView.overlays {
                 if let polygon = overlay as? MKPolygon, polygon.contains(coordinate) {
                     print("Tapped on overlay: \(polygon.title ?? "Unknown")")
@@ -130,7 +126,7 @@ extension MKPolygon {
         let mapPoint = MKMapPoint(coordinate)
         let renderer = MKPolygonRenderer(polygon: self)
         let point = renderer.point(for: mapPoint)
-        return renderer.path.contains(point)
+        return renderer.path?.contains(point) ?? false
     }
 }
 
