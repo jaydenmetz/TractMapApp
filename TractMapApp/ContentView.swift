@@ -11,6 +11,7 @@ import MapKit
 struct ContentView: View {
     @StateObject private var viewModel = MapViewModel()
     @State private var recenterTrigger = false
+    @State private var selectedPolygon: MKPolygon? // Added to track the selected polygon
 
     var body: some View {
         ZStack {
@@ -23,9 +24,11 @@ struct ContentView: View {
                     overlays: viewModel.overlays,
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon in
+                        selectedPolygon = polygon // Update the selected polygon
                         viewModel.centerMap(on: polygon)
                         recenterTrigger.toggle() // Trigger map region update
-                    }
+                    },
+                    selectedPolygon: $selectedPolygon // Pass selected polygon binding
                 )
                 .edgesIgnoringSafeArea(.all)
             } else {

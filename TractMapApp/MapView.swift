@@ -13,6 +13,7 @@ struct MapView: UIViewRepresentable {
     var overlays: [MKOverlay]
     @Binding var recenterTrigger: Bool
     var onOverlayTapped: (MKPolygon) -> Void
+    @Binding var selectedPolygon: MKPolygon? // Track tapped overlay using Binding
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -60,33 +61,32 @@ struct MapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
+                let isSelected = (parent.selectedPolygon === polygon)
 
                 if let title = polygon.title {
-                    print("Creating renderer for: \(title)")
-                    switch title {
-                    case "The Northwest":
-                        renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5) // Light Green
-                    case "North Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5) // Light Purple
-                    case "Central Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5) // Light Gray
-                    case "The Northeast":
-                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // Light Cyan
-                    case "East Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // Light Cyan
-                    case "South Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5) // Soft Aqua
-                    case "The Southeast":
-                        renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5) // Pale Yellow-Green
-                    case "The Southwest":
-                        renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5) // Soft Olive Green
-                    default:
-                        renderer.fillColor = UIColor.gray.withAlphaComponent(0.5) // Default Gray
-                    }
-                } else {
-                    print("Polygon title is nil")
-                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
-                }
+                                    print("Creating renderer for: \(title)")
+                                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.5) // Default
+                                    switch title {
+                                    case "The Northwest":
+                                        renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "North Bakersfield":
+                                        renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "Central Bakersfield":
+                                        renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "The Northeast":
+                                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "East Bakersfield":
+                                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "South Bakersfield":
+                                        renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "The Southeast":
+                                        renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    case "The Southwest":
+                                        renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: parent.selectedPolygon === polygon ? 0.9 : 0.5)
+                                    default:
+                                        renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
+                                    }
+                                }
 
                 renderer.strokeColor = .black
                 renderer.lineWidth = 2
@@ -107,32 +107,28 @@ struct MapView: UIViewRepresentable {
                    renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
 
                     print("Tapped on overlay: \(polygon.title ?? "Unknown")")
-
+                    
                     let mapRect = polygon.boundingMapRect
                     let centerCoordinate = CLLocationCoordinate2D(
                         latitude: mapRect.midY.convertToLatitude(),
                         longitude: mapRect.midX.convertToLongitude()
                     )
                     
-                    // Absolute value ensures non-negative spans
-                    let latitudeDelta = abs(mapRect.height.convertToLatitudeDelta())
-                    let longitudeDelta = abs(mapRect.width.convertToLongitudeDelta())
+                    let paddingFactor: Double = 1.1 // 10% padding
+                    let latitudeDelta = abs(mapRect.height.convertToLatitudeDelta()) * paddingFactor
+                    let longitudeDelta = abs(mapRect.width.convertToLongitudeDelta()) * paddingFactor
                     
-                    // Construct region
                     let region = MKCoordinateRegion(
                         center: centerCoordinate,
                         span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
                     )
-                    
-                    // Print the calculated region
-                    print("Calculated MKCoordinateRegion: Center = \(region.center), Span = \(region.span)")
-                    
+
+                    self.parent.selectedPolygon = polygon
                     self.parent.region = region
                     self.parent.recenterTrigger = true
                     break
                 }
             }
         }
-
     }
 }

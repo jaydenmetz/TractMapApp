@@ -104,18 +104,22 @@ extension MKCoordinateRegion {
 
 extension Double {
     func convertToLatitude() -> CLLocationDegrees {
-        MKMapPoint(x: 0, y: self).coordinate.latitude
+        return MKMapPoint(x: 0, y: self).coordinate.latitude
     }
 
     func convertToLongitude() -> CLLocationDegrees {
-        MKMapPoint(x: self, y: 0).coordinate.longitude
+        return MKMapPoint(x: self, y: 0).coordinate.longitude
     }
 
     func convertToLatitudeDelta() -> CLLocationDegrees {
-        MKMapPoint(x: 0, y: self).coordinate.latitude - MKMapPoint(x: 0, y: 0).coordinate.latitude
+        let south = MKMapPoint(x: 0, y: self)
+        let north = MKMapPoint(x: 0, y: 0)
+        return south.coordinate.latitude - north.coordinate.latitude
     }
 
     func convertToLongitudeDelta() -> CLLocationDegrees {
-        MKMapPoint(x: self, y: 0).coordinate.longitude - MKMapPoint(x: 0, y: 0).coordinate.longitude
+        let east = MKMapPoint(x: self, y: 0)
+        let west = MKMapPoint(x: 0, y: 0)
+        return east.coordinate.longitude - west.coordinate.longitude
     }
 }
