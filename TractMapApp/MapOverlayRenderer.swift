@@ -63,6 +63,11 @@ struct MapOverlayView: UIViewRepresentable {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
+
+        // Add tap gesture recognizer for overlay taps
+        let tapRecognizer = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
+        mapView.addGestureRecognizer(tapRecognizer)
+        
         return mapView
     }
 
@@ -104,32 +109,28 @@ struct MapOverlayView: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
 
-        func mapView(_ mapView: MKMapView, didSelect annotationView: MKAnnotationView) {
-            print("Annotation selected: \(annotationView.annotation?.title ?? "Unknown")")
-        }
-
-        func mapView(_ mapView: MKMapView, didSelect overlay: MKOverlay) {
-            if let polygon = overlay as? MKPolygon {
-                print("Overlay selected in didSelect: \(polygon.title ?? "Unknown")")
-                onSelectOverlay(polygon)
-            } else {
-                print("Non-polygon overlay selected")
+        @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
+            guard let mapView = gestureRecognizer.view as? MKMapView else { return }
+            let point = gestureRecognizer.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            
+            for overlay in mapView.overlays {
+                if let polygon = overlay as? MKPolygon, polygon.contains(coordinate) {
+                    print("Tapped on overlay: \(polygon.title ?? "Unknown")")
+                    onSelectOverlay(polygon)
+                    break
+                }
             }
         }
+    }
+}
 
-        func mapView(_ mapView: MKMapView, didDeselect overlay: MKOverlay) {
-            if let polygon = overlay as? MKPolygon {
-                print("Overlay deselected: \(polygon.title ?? "Unknown")")
-            }
-        }
-
-        func centerMapOnOverlay(mapView: MKMapView, polygon: MKPolygon) {
-            print("Centering map on overlay: \(polygon.title ?? "Unknown")")
-            let boundingRect = polygon.boundingMapRect
-            let edgePadding = UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50)
-            let region = mapView.mapRectThatFits(boundingRect, edgePadding: edgePadding)
-            mapView.setRegion(MKCoordinateRegion(region), animated: true)
-        }
+extension MKPolygon {
+    func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let mapPoint = MKMapPoint(coordinate)
+        let renderer = MKPolygonRenderer(polygon: self)
+        let point = renderer.point(for: mapPoint)
+        return renderer.path.contains(point)
     }
 }
 

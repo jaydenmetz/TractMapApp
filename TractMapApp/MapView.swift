@@ -19,6 +19,10 @@ struct MapView: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
         mapView.setRegion(region, animated: false)
+        
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
+        mapView.addGestureRecognizer(tapGesture)
+        
         return mapView
     }
 
@@ -30,19 +34,17 @@ struct MapView: UIViewRepresentable {
             }
         }
 
-        let currentOverlays = uiView.overlays
-        
-        let currentOverlaysSet = Set(currentOverlays.map { ObjectIdentifier($0) })
+        // Efficient overlay updates
+        let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
         let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
 
-        let overlaysToRemove = currentOverlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
+        let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
         let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
 
         uiView.removeOverlays(overlaysToRemove)
         uiView.addOverlays(overlaysToAdd)
 
-        uiView.removeOverlays(Array(overlaysToRemove))
-        uiView.addOverlays(Array(overlaysToAdd))
+        print("MapView updated: \(overlaysToAdd.count) overlays added, \(overlaysToRemove.count) removed")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -66,53 +68,48 @@ struct MapView: UIViewRepresentable {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
                 
-                #if DEBUG
                 if let title = polygon.title {
-                    debugPrint("Polygon title: \(title)")
-                } else {
-                    debugPrint("Polygon title is nil")
-                }
-                #endif
-
-                if let title = polygon.title {
-                    print("Polygon title: \(title)")
+                    #if DEBUG
+                    debugPrint("Polygon title (debug): \(title)")
+                    #endif
                     switch title {
-                    case "The Northwest":
-                        renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5) // #c9f1c4
-                    case "North Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5) // #e1c0fc
-                    case "Central Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5) // #eadedd
-                    case "The Northeast":
-                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // #c5e7e4
-                    case "East Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5) // #c5e7e4
-                    case "South Bakersfield":
-                        renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5) // #c8ded7
-                    case "The Southeast":
-                        renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5) // #eefac1
-                    case "The Southwest":
-                        renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5) // #e1f0c5
-                    default:
-                        renderer.fillColor = UIColor.gray.withAlphaComponent(0.5) // Default gray
+                    case "The Northwest": renderer.fillColor = UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: 0.5)
+                    case "North Bakersfield": renderer.fillColor = UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: 0.5)
+                    case "Central Bakersfield": renderer.fillColor = UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: 0.5)
+                    case "The Northeast": renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5)
+                    case "East Bakersfield": renderer.fillColor = UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: 0.5)
+                    case "South Bakersfield": renderer.fillColor = UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: 0.5)
+                    case "The Southeast": renderer.fillColor = UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: 0.5)
+                    case "The Southwest": renderer.fillColor = UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: 0.5)
+                    default: renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
                     }
                 } else {
-                    print("Polygon title is nil")
+                    debugPrint("Polygon title is nil")
                     renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
                 }
-                
+
                 renderer.strokeColor = .black
                 renderer.lineWidth = 2
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
         }
+
+        // Gesture Handling
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            let point = gesture.location(in: gesture.view)
+            guard let mapView = gesture.view as? MKMapView else { return }
+
+            let mapCoordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            let mapPoint = MKMapPoint(mapCoordinate) // Convert to MKMapPoint
+
+            for overlay in mapView.overlays {
+                if let renderer = mapView.renderer(for: overlay) as? MKPolygonRenderer,
+                   let polygon = overlay as? MKPolygon,
+                   renderer.path?.contains(renderer.point(for: mapPoint)) == true {
+                    print("Tapped overlay: \(polygon.title ?? "Unknown")")
+                }
+            }
+        }
     }
 }
-
-
-
-
-
-
-
