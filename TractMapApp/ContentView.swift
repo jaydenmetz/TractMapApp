@@ -11,7 +11,7 @@ import MapKit
 struct ContentView: View {
     @StateObject private var viewModel = MapViewModel()
     @State private var recenterTrigger = false
-    @State private var selectedPolygon: MKPolygon? // Added to track the selected polygon
+    @State private var selectedPolygon: MKPolygon?
 
     var body: some View {
         ZStack {
@@ -24,11 +24,11 @@ struct ContentView: View {
                     overlays: viewModel.overlays,
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon in
-                        selectedPolygon = polygon // Update the selected polygon
+                        selectedPolygon = polygon
                         viewModel.centerMap(on: polygon)
-                        recenterTrigger.toggle() // Trigger map region update
+                        recenterTrigger.toggle()
                     },
-                    selectedPolygon: $selectedPolygon // Pass selected polygon binding
+                    selectedPolygon: $selectedPolygon
                 )
                 .edgesIgnoringSafeArea(.all)
             } else {
@@ -41,10 +41,12 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     Button(action: {
+                        print("Centering to current location...")
                         viewModel.centerToCurrentLocation()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { // Prevent immediate reset
-                            recenterTrigger.toggle()
-                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                print("Triggering recenter with updated region: \(viewModel.visibleRegion?.center ?? .init())")
+                                recenterTrigger.toggle()
+                            }
                     }) {
                         Image(systemName: "location.fill")
                             .foregroundColor(.white)
@@ -58,6 +60,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            print("ContentView appeared, loading GeoJSON overlays.")
             viewModel.loadGeoJSONOverlays()
         }
     }

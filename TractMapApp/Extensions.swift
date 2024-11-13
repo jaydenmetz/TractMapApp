@@ -5,6 +5,7 @@
 //  Created by Jayden Metz on 11/8/24.
 //
 
+import UIKit
 import MapKit
 
 extension MKCoordinateRegion: Equatable {
@@ -65,15 +66,6 @@ extension MKCoordinateRegion {
 }
 
 extension MKCoordinateRegion {
-    func isValid() -> Bool {
-        return center.latitude >= -90 && center.latitude <= 90 &&
-               center.longitude >= -180 && center.longitude <= 180 &&
-               span.latitudeDelta > 0 && span.latitudeDelta < 180 &&
-               span.longitudeDelta > 0 && span.longitudeDelta < 360
-    }
-}
-
-extension MKCoordinateRegion {
     init(_ rect: MKMapRect) {
         let center = CLLocationCoordinate2D(
             latitude: rect.origin.y + rect.size.height / 2,
@@ -89,16 +81,23 @@ extension MKCoordinateRegion {
 
 extension MKCoordinateRegion {
     func clampedToValidRange() -> MKCoordinateRegion {
-        let clampedLatitude = min(max(self.center.latitude, -90.0), 90.0)
-        let clampedLongitude = min(max(self.center.longitude, -180.0), 180.0)
+        let clampedLatitude = min(max(center.latitude, -90.0), 90.0)
+        let clampedLongitude = min(max(center.longitude, -180.0), 180.0)
 
-        let clampedLatitudeDelta = min(max(self.span.latitudeDelta, 0.01), 180.0)
-        let clampedLongitudeDelta = min(max(self.span.longitudeDelta, 0.01), 360.0)
+        let clampedLatitudeDelta = max(0.0001, min(span.latitudeDelta, 180.0))
+        let clampedLongitudeDelta = max(0.0001, min(span.longitudeDelta, 360.0))
 
         return MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: clampedLatitude, longitude: clampedLongitude),
             span: MKCoordinateSpan(latitudeDelta: clampedLatitudeDelta, longitudeDelta: clampedLongitudeDelta)
         )
+    }
+
+    func isValid() -> Bool {
+        return center.latitude >= -90 && center.latitude <= 90 &&
+               center.longitude >= -180 && center.longitude <= 180 &&
+               span.latitudeDelta > 0 && span.latitudeDelta <= 180 &&
+               span.longitudeDelta > 0 && span.longitudeDelta <= 360
     }
 }
 
@@ -121,5 +120,40 @@ extension Double {
         let east = MKMapPoint(x: self, y: 0)
         let west = MKMapPoint(x: 0, y: 0)
         return east.coordinate.longitude - west.coordinate.longitude
+    }
+}
+
+extension CALayer {
+    func applyShadow(color: UIColor = .black, radius: CGFloat = 4, opacity: Float = 0.5, offset: CGSize = CGSize(width: 0, height: 2)) {
+        shadowColor = color.cgColor
+        shadowRadius = radius
+        shadowOpacity = opacity
+        shadowOffset = offset
+        masksToBounds = false
+    }
+}
+
+extension UILabel {
+    func applyGradientBackground(colors: [UIColor]) {
+        let gradientLayer = CAGradientLayer()
+        gradientLayer.colors = colors.map { $0.cgColor }
+        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
+        gradientLayer.frame = bounds
+        gradientLayer.cornerRadius = layer.cornerRadius
+        layer.insertSublayer(gradientLayer, at: 0)
+    }
+}
+
+
+extension MKCoordinateRegion {
+    func withPadding(multiplier: CGFloat) -> MKCoordinateRegion {
+        return MKCoordinateRegion(
+            center: self.center,
+            span: MKCoordinateSpan(
+                latitudeDelta: self.span.latitudeDelta * multiplier,
+                longitudeDelta: self.span.longitudeDelta * multiplier
+            )
+        )
     }
 }

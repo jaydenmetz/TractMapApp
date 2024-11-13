@@ -13,7 +13,7 @@ struct MapView: UIViewRepresentable {
     var overlays: [MKOverlay]
     @Binding var recenterTrigger: Bool
     var onOverlayTapped: (MKPolygon) -> Void
-    @Binding var selectedPolygon: MKPolygon? // Track the selected overlay
+    @Binding var selectedPolygon: MKPolygon?
 
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -29,6 +29,7 @@ struct MapView: UIViewRepresentable {
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
         if recenterTrigger {
+            print("Recenter trigger activated with region: \(region)")
             uiView.setRegion(region, animated: true)
             DispatchQueue.main.async {
                 recenterTrigger = false
@@ -43,6 +44,8 @@ struct MapView: UIViewRepresentable {
 
         uiView.removeOverlays(overlaysToRemove)
         uiView.addOverlays(overlaysToAdd)
+
+        print("Updated overlays. Added: \(overlaysToAdd.count), Removed: \(overlaysToRemove.count)")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -61,19 +64,13 @@ struct MapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-
-                if let title = polygon.title {
-                    print("Creating renderer for: \(title)")
-                    let isSelected = parent.selectedPolygon == polygon
-                    renderer.fillColor = rendererColor(for: title, selected: isSelected)
-                    print("Renderer fillColor for \(title): \(isSelected ? "Selected (0.9 opacity)" : "Normal (0.5 opacity)")")
-                }
-
+                let isSelected = parent.selectedPolygon == polygon
+                renderer.fillColor = rendererColor(for: polygon.title ?? "Unknown", selected: isSelected)
+                print("Rendering polygon: \(polygon.title ?? "Unknown"), isSelected: \(isSelected)")
                 renderer.strokeColor = .black
                 renderer.lineWidth = 2
                 return renderer
             }
-
             return MKOverlayRenderer(overlay: overlay)
         }
 
@@ -89,44 +86,53 @@ struct MapView: UIViewRepresentable {
 
                     print("Tapped on overlay: \(polygon.title ?? "Unknown")")
 
-                    if self.parent.selectedPolygon != polygon {
-                        print("Changing selected overlay to: \(polygon.title ?? "Unknown")")
+                    if let currentlySelected = parent.selectedPolygon {
+                        print("Currently selected polygon: \(currentlySelected.title ?? "None")")
 
-                        // Deselect previous overlay
-                        if let previousPolygon = self.parent.selectedPolygon {
-                            print("Deselecting previous overlay: \(previousPolygon.title ?? "Unknown")")
-                            self.parent.selectedPolygon = nil // Temporarily clear to trigger update
-                            mapView.removeOverlay(previousPolygon)
-                            mapView.addOverlay(previousPolygon) // Re-add to update renderer
+                        if currentlySelected == polygon {
+                            print("Tapped overlay is already selected.")
+                            return // Avoid redundant selection
                         }
 
-                        // Select new overlay
-                        self.parent.selectedPolygon = polygon
-                        mapView.removeOverlay(polygon)
-                        mapView.addOverlay(polygon) // Re-add to ensure correct rendering
-                    } else {
-                        print("Tapped overlay is already selected.")
+                        // Deselect the previous polygon
+                        print("Deselecting previous overlay: \(currentlySelected.title ?? "Unknown")")
+                        parent.selectedPolygon = nil
+                        mapView.removeOverlay(currentlySelected)
+                        mapView.addOverlay(currentlySelected) // Force redraw for deselection
                     }
 
-                    // Recenter logic remains unchanged
-                    let mapRect = polygon.boundingMapRect
-                    let centerCoordinate = CLLocationCoordinate2D(
-                        latitude: mapRect.midY.convertToLatitude(),
-                        longitude: mapRect.midX.convertToLongitude()
-                    )
-                    let paddingFactor: Double = 1.1
-                    let latitudeDelta = abs(mapRect.height.convertToLatitudeDelta()) * paddingFactor
-                    let longitudeDelta = abs(mapRect.width.convertToLongitudeDelta()) * paddingFactor
-                    let region = MKCoordinateRegion(
-                        center: centerCoordinate,
-                        span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
-                    )
-                    print("Recenter region: Center = \(region.center), Span = \(region.span)")
+                    // Select the new polygon
+                    parent.selectedPolygon = polygon
+                    mapView.removeOverlay(polygon)
+                    mapView.addOverlay(polygon) // Force redraw for selection
+                    print("Newly selected polygon: \(polygon.title ?? "Unknown")")
 
-                    self.parent.region = region
-                    self.parent.recenterTrigger = true
-                    break
+                    return
                 }
+            }
+            print("Tapped outside of polygons.")
+        }
+        
+        private func centerMap(on polygon: MKPolygon, in mapView: MKMapView) {
+            var mapRect = polygon.boundingMapRect
+            mapRect = mapRect.insetBy(dx: -mapRect.size.width * 0.05, dy: -mapRect.size.height * 0.05)
+            
+            let adjustedRect = mapView.mapRectThatFits(mapRect, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20))
+
+            print("Bounding map rect for \(polygon.title ?? "Unknown"): \(mapRect)")
+            print("Adjusted map rect: \(adjustedRect)")
+
+            let region = MKCoordinateRegion(adjustedRect)
+            let clampedRegion = region.clampedToValidRange()
+
+            print("New region calculated: Center = \(clampedRegion.center), Span = \(clampedRegion.span)")
+
+            if clampedRegion.isValid() {
+                parent.region = clampedRegion
+                parent.recenterTrigger = true
+                print("Recenter trigger activated with valid region.")
+            } else {
+                print("Warning: Invalid recenter region for \(polygon.title ?? "Unknown").")
             }
         }
 
