@@ -46,13 +46,12 @@ struct ContentView: View {
     private func buttonsAndDropdownOverlay() -> some View {
         GeometryReader { geo in
             VStack {
-                Spacer() // Push to the bottom
+                Spacer()
 
                 HStack {
-                    Spacer() // Align to the trailing edge
+                    Spacer()
 
                     VStack(alignment: .trailing) {
-                        // Dropdown positioned independently
                         if showingLayerOptions {
                             Spacer()
                             dropdownMenu
@@ -61,7 +60,6 @@ struct ContentView: View {
                                 .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
 
-                        // Button stack in bottom right
                         buttonStack
                             .padding(.trailing, 20)
                             .padding(.bottom, 20)

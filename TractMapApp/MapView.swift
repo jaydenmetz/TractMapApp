@@ -1,10 +1,3 @@
-//
-//  MapView.swift
-//  TractMapApp
-//
-//  Created by Jayden Metz on 11/7/24.
-//
-
 import SwiftUI
 import MapKit
 
@@ -14,7 +7,7 @@ struct MapView: UIViewRepresentable {
     @Binding var recenterTrigger: Bool
     var onOverlayTapped: (MKPolygon) -> Void
     @Binding var selectedPolygon: MKPolygon?
-    
+
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
@@ -26,121 +19,94 @@ struct MapView: UIViewRepresentable {
         
         return mapView
     }
-    
+
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        if recenterTrigger {
-            print("Recenter trigger activated with region: \(region)")
-            uiView.setRegion(region, animated: true)
-            DispatchQueue.main.async {
-                recenterTrigger = false
+        DispatchQueue.main.async {
+            if self.recenterTrigger {
+                print("[DEBUG - updateUIView] Recenter triggered with region: \(self.region)")
+                uiView.setRegion(self.region, animated: true)
+                self.recenterTrigger = false
             }
+
+            let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
+            let newOverlaysSet = Set(self.overlays.map { ObjectIdentifier($0) })
+
+            let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
+            let overlaysToAdd = self.overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
+
+            if !overlaysToRemove.isEmpty {
+                print("[DEBUG - updateUIView] Removing overlays count: \(overlaysToRemove.count)")
+                uiView.removeOverlays(overlaysToRemove)
+            }
+
+            if !overlaysToAdd.isEmpty {
+                print("[DEBUG - updateUIView] Adding overlays count: \(overlaysToAdd.count)")
+                uiView.addOverlays(overlaysToAdd)
+            }
+
+            print("[DEBUG - updateUIView] Final overlays count: \(uiView.overlays.count)")
         }
-        
-        let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
-        let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
-        
-        let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
-        let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
-        
-        overlaysToRemove.forEach { overlay in
-            print("Removing overlay: \(overlay)")
-        }
-        overlaysToAdd.forEach { overlay in
-            print("Adding overlay: \(overlay)")
-        }
-        
-        uiView.removeOverlays(overlaysToRemove)
-        uiView.addOverlays(overlaysToAdd)
-        
-        print("Updated overlays. Added: \(overlaysToAdd.count), Removed: \(overlaysToRemove.count)")
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self, onOverlayTapped: onOverlayTapped)
     }
-    
+
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
         var onOverlayTapped: (MKPolygon) -> Void
-        
+
         init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon) -> Void) {
             self.parent = parent
             self.onOverlayTapped = onOverlayTapped
         }
-        
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-                let isSelected = parent.selectedPolygon == polygon
-                renderer.fillColor = rendererColor(for: polygon.title ?? "Unknown", selected: isSelected)
-                print("Rendering polygon: \(polygon.title ?? "Unknown"), isSelected: \(isSelected)")
-                renderer.strokeColor = .black
-                renderer.lineWidth = 2
+
+                guard let subtitle = polygon.subtitle else {
+                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
+                    renderer.strokeColor = .black
+                    renderer.lineWidth = 1
+                    return renderer
+                }
+
+                let properties = subtitle.split(separator: ";").reduce(into: [String: Double]()) { result, component in
+                    let keyValue = component.split(separator: ":")
+                    if keyValue.count == 2, let key = keyValue.first, let value = Double(keyValue.last!) {
+                        result[String(key)] = value
+                    }
+                }
+
+                let fillColor = UIColor(
+                    red: CGFloat(properties["FillClrR"] ?? 0.5),
+                    green: CGFloat(properties["FillClrG"] ?? 0.5),
+                    blue: CGFloat(properties["FillClrB"] ?? 0.5),
+                    alpha: CGFloat(properties["FillOp"] ?? 0.3)
+                )
+                renderer.fillColor = fillColor
+                renderer.strokeColor = UIColor.black.withAlphaComponent(CGFloat(properties["StrkOp"] ?? 1))
+                renderer.lineWidth = CGFloat(properties["StrkWt"] ?? 1)
+
                 return renderer
             }
-            print("Unknown overlay type: \(type(of: overlay))")
             return MKOverlayRenderer(overlay: overlay)
         }
-        
+
         @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
             guard let mapView = gestureRecognizer.view as? MKMapView else { return }
             let tapPoint = gestureRecognizer.location(in: mapView)
             let tapCoordinate = mapView.convert(tapPoint, toCoordinateFrom: mapView)
-            
+
             for overlay in mapView.overlays {
                 if let polygon = overlay as? MKPolygon,
                    let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
                    renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
-                    
-                    print("Tapped on overlay: \(polygon.title ?? "Unknown")")
-                    
-                    if let currentlySelected = parent.selectedPolygon {
-                        print("Currently selected polygon: \(currentlySelected.title ?? "None")")
-                        
-                        if currentlySelected == polygon {
-                            print("Tapped overlay is already selected.")
-                            return
-                        }
-                        
-                        // Deselect the previous polygon
-                        print("Deselecting previous overlay: \(currentlySelected.title ?? "Unknown")")
-                        parent.selectedPolygon = nil
-                        mapView.removeOverlay(currentlySelected)
-                        mapView.addOverlay(currentlySelected) // Redraw deselected
-                    }
-                    
-                    // Select the new polygon
-                    parent.selectedPolygon = polygon
-                    mapView.removeOverlay(polygon)
-                    mapView.addOverlay(polygon) // Redraw selected
-                    print("Newly selected polygon: \(polygon.title ?? "Unknown")")
-                    
+                    print("[DEBUG - handleTap] Polygon tapped: \(polygon.title ?? "Unknown")")
+                    onOverlayTapped(polygon)
                     return
                 }
-            }
-            print("Tapped outside of polygons.")
-        }
-        
-        private func rendererColor(for title: String, selected: Bool) -> UIColor {
-            switch title {
-            case "The Northwest":
-                return UIColor(red: 0.79, green: 0.95, blue: 0.77, alpha: selected ? 0.9 : 0.5)
-            case "North Bakersfield":
-                return UIColor(red: 0.88, green: 0.75, blue: 0.99, alpha: selected ? 0.9 : 0.5)
-            case "Central Bakersfield":
-                return UIColor(red: 0.92, green: 0.87, blue: 0.87, alpha: selected ? 0.9: 0.5)
-            case "The Northeast":
-                return UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: selected ? 0.9: 0.5)
-            case "East Bakersfield":
-                return UIColor(red: 0.77, green: 0.91, blue: 0.89, alpha: selected ? 0.9: 0.5)
-            case "South Bakersfield":
-                return UIColor(red: 0.78, green: 0.87, blue: 0.84, alpha: selected ? 0.9: 0.5)
-            case "The Southeast":
-                return UIColor(red: 0.93, green: 0.98, blue: 0.76, alpha: selected ? 0.9: 0.5)
-            case "The Southwest":
-                return UIColor(red: 0.88, green: 0.94, blue: 0.77, alpha: selected ? 0.9: 0.5)
-            default:
-                return UIColor.gray.withAlphaComponent(selected ? 0.9: 0.5)
             }
         }
     }

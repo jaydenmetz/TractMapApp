@@ -1,48 +1,41 @@
-//
-//  MapViewModel.swift
-//  TractMapApp
-//
-//  Created by Jayden Metz on 11/7/24.
-//
-
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var visibleRegion: MKCoordinateRegion?
-    @Published var overlays: [MKPolygon] = [] // Displayed overlays
-    @Published var showAllOverlays = false // Toggle for all overlays
-    @Published var currentLocation: CLLocationCoordinate2D? // Current location coordinate
+    @Published var overlays: [MKPolygon] = []
+    @Published var showAllOverlays = false
+    @Published var currentLocation: CLLocationCoordinate2D?
 
-    private var geoJSONOverlays: [MKPolygon] = [] // Store all GeoJSON overlays
-    private var locationManager = CLLocationManager()
-    private var isOverlaysLoaded = false // Prevent loading multiple times
-    private var hasSetInitialLocation = false // Track whether initial location has been set
+    private var geoJSONOverlays: [MKPolygon] = []
+    private var locationManager = LocationManager()
+    private var isOverlaysLoaded = false
+    private var hasSetInitialLocation = false
+    private var cancellables = Set<AnyCancellable>()
 
     override init() {
         super.init()
-        locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
+        locationManager.$lastLocation
+            .compactMap { $0 }
+            .sink { [weak self] newLocation in
+                self?.handleLocationUpdate(newLocation)
+            }
+            .store(in: &cancellables)
     }
 
     func loadGeoJSONOverlays() {
-        guard !isOverlaysLoaded else {
-            print("Overlays already loaded.")
-            return
-        }
+        guard !isOverlaysLoaded else { return }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let filePath = Bundle.main.url(forResource: "MLS Regional Neighborhoods", withExtension: "geojson") else {
+            guard let filePath = Bundle.main.url(forResource: "Corrected_MLS_Regional_Neighborhoods_No_FillClr", withExtension: "geojson") else {
                 print("GeoJSON file not found.")
                 return
             }
 
             do {
                 let data = try Data(contentsOf: filePath)
-                print("GeoJSON file loaded successfully: \(filePath)")
-
                 let features = try MKGeoJSONDecoder().decode(data)
                 for feature in features {
                     if let geoFeature = feature as? MKGeoJSONFeature {
@@ -51,37 +44,29 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 }
 
                 DispatchQueue.main.async {
-                    print("GeoJSON Overlays Loaded: \(self.geoJSONOverlays.count) polygons.")
                     self.isOverlaysLoaded = true
                     self.updateFilteredOverlays()
                 }
             } catch {
-                print("Failed to parse GeoJSON at \(filePath): \(error.localizedDescription)")
+                print("Failed to parse GeoJSON: \(error.localizedDescription)")
             }
         }
     }
 
     private func processFeature(_ geoFeature: MKGeoJSONFeature) {
-        guard let propertiesData = geoFeature.properties else {
-            print("No properties found for feature.")
-            return
-        }
+        guard let propertiesData = geoFeature.properties else { return }
 
         do {
             if let properties = try JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any] {
                 for geometry in geoFeature.geometry {
                     if let polygon = geometry as? MKPolygon {
-                        polygon.title = properties["LblVal"] as? String
-                        self.geoJSONOverlays.append(polygon)
-                        print("Polygon added: \(polygon.title ?? "Unknown")")
+                        self.addPolygon(polygon, properties: properties)
                     } else if let multiPolygon = geometry as? MKMultiPolygon {
                         self.processMultiPolygon(multiPolygon, properties: properties)
                     } else {
-                        print("Unsupported geometry type: \(type(of: geometry))")
+                        print("[DEBUG - processFeature] Unsupported geometry type: \(type(of: geometry))")
                     }
                 }
-            } else {
-                print("Failed to decode properties as dictionary.")
             }
         } catch {
             print("Error decoding properties: \(error.localizedDescription)")
@@ -90,21 +75,33 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func processMultiPolygon(_ multiPolygon: MKMultiPolygon, properties: [String: Any]) {
         for polygon in multiPolygon.polygons {
-            polygon.title = properties["LblVal"] as? String
-            self.geoJSONOverlays.append(polygon)
-            print("Polygon from MultiPolygon added: \(polygon.title ?? "Unknown")")
+            self.addPolygon(polygon, properties: properties)
         }
+    }
+
+    private func addPolygon(_ polygon: MKPolygon, properties: [String: Any]) {
+        polygon.title = properties["LblVal"] as? String
+
+        if let fillRed = properties["FillClrR"] as? Double,
+           let fillGreen = properties["FillClrG"] as? Double,
+           let fillBlue = properties["FillClrB"] as? Double,
+           let fillOpacity = properties["FillOp"] as? Double,
+           let strokeOpacity = properties["StrkOp"] as? Double,
+           let strokeWeight = properties["StrkWt"] as? Double {
+            
+            polygon.subtitle = """
+            FillClrR:\(fillRed);FillClrG:\(fillGreen);FillClrB:\(fillBlue);FillOp:\(fillOpacity);StrkOp:\(strokeOpacity);StrkWt:\(strokeWeight)
+            """
+        }
+
+        geoJSONOverlays.append(polygon)
+        print("[DEBUG - addPolygon] Added polygon: \(polygon.title ?? "Unknown")")
     }
 
     func updateFilteredOverlays() {
         DispatchQueue.main.async {
-            if self.showAllOverlays {
-                self.overlays = self.geoJSONOverlays
-                print("Displaying all overlays: \(self.overlays.count) polygons.")
-            } else {
-                self.overlays.removeAll()
-                print("Hiding all overlays.")
-            }
+            self.overlays = self.showAllOverlays ? self.geoJSONOverlays : []
+            print("[DEBUG - updateFilteredOverlays] Current visible overlays count: \(self.overlays.count)")
         }
     }
 
@@ -114,11 +111,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func centerToCurrentLocation() {
-        guard let currentLocation = locationManager.location else {
-            print("Current location unavailable.")
-            return
-        }
-        updateVisibleRegion(with: currentLocation.coordinate)
+        locationManager.requestCurrentLocation()
     }
 
     private func updateVisibleRegion(with coordinate: CLLocationCoordinate2D) {
@@ -127,43 +120,28 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 center: coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
             )
-            print("Updated visible region to: \(coordinate.latitude), \(coordinate.longitude)")
+            print("[DEBUG - updateVisibleRegion] Updated region to: \(coordinate.latitude), \(coordinate.longitude)")
         }
     }
 
     func centerMap(on polygon: MKPolygon) {
-        let boundingMapRect = polygon.boundingMapRect
-        let edgePadding = UIEdgeInsets(top: 25, left: 25, bottom: 25, right: 25)
-
+        let rect = polygon.boundingMapRect
         DispatchQueue.main.async {
-            let mapView = MKMapView()
-            let fittedRegion = mapView.mapRectThatFits(boundingMapRect, edgePadding: edgePadding)
-            self.visibleRegion = MKCoordinateRegion(fittedRegion)
-            print("Centered to overlay: \(polygon.title ?? "Unknown")")
+            let rawRegion = MKCoordinateRegion(rect)
+            let clampedRegion = rawRegion.clampedToValidRange() // Validate and clamp
+
+            self.visibleRegion = clampedRegion
+            
+            print("[DEBUG - centerMap] Clamped region: \(clampedRegion)")
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-
-        // Update current location
-        self.currentLocation = location.coordinate
-
-        // Set initial visible region on the first location update
+    private func handleLocationUpdate(_ newLocation: CLLocationCoordinate2D) {
+        currentLocation = newLocation
         if !hasSetInitialLocation {
             hasSetInitialLocation = true
-            updateVisibleRegion(with: location.coordinate)
+            updateVisibleRegion(with: newLocation)
         }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        switch status {
-        case .authorizedWhenInUse, .authorizedAlways:
-            locationManager.startUpdatingLocation()
-        case .denied, .restricted:
-            print("Location access denied or restricted.")
-        default:
-            break
-        }
+        print("[DEBUG - handleLocationUpdate] Location updated to: \(newLocation.latitude), \(newLocation.longitude)")
     }
 }
