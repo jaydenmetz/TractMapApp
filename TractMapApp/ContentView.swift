@@ -5,19 +5,19 @@ struct ContentView: View {
     @StateObject private var viewModel = MapViewModel()
     @State private var recenterTrigger = false
     @State private var selectedPolygon: MKPolygon?
-    @State private var showingLayerOptions = false // Toggle for the dropdown menu
+    @State private var showingLayerOptions = false
 
     var body: some View {
         ZStack {
-            // Map at the very bottom
             if let region = viewModel.visibleRegion {
                 MapView(
                     region: regionBinding,
                     overlays: viewModel.overlays,
+                    annotations: viewModel.annotations, // Include annotations
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon, mapView in
                         selectedPolygon = polygon
-                        viewModel.centerMap(on: polygon, mapView: mapView) // Correctly pass mapView here
+                        viewModel.centerMap(on: polygon, mapView: mapView)
                         recenterTrigger.toggle()
                     },
                     selectedPolygon: $selectedPolygon
@@ -28,7 +28,6 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // Buttons and dropdown on top
             buttonsAndDropdownOverlay()
         }
         .onAppear {
@@ -44,7 +43,7 @@ struct ContentView: View {
     }
 
     private func buttonsAndDropdownOverlay() -> some View {
-        GeometryReader { geo in
+        GeometryReader { _ in
             VStack {
                 Spacer()
 

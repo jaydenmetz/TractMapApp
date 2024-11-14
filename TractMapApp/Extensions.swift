@@ -1,4 +1,6 @@
 import MapKit
+import ObjectiveC
+
 
 extension MKCoordinateRegion {
     init(_ rect: MKMapRect) {
@@ -49,5 +51,24 @@ extension MKCoordinateRegion {
         )
 
         return MKCoordinateRegion(center: clampedCenter, span: clampedSpan)
+    }
+}
+
+private var annotationDisplayedKey: UInt8 = 0
+
+extension MKPolygon {
+    var annotationDisplayed: Bool {
+        get {
+            objc_getAssociatedObject(self, &annotationDisplayedKey) as? Bool ?? false
+        }
+        set {
+            objc_setAssociatedObject(self, &annotationDisplayedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+    }
+}
+
+extension CLLocationCoordinate2D {
+    func isEqual(to other: CLLocationCoordinate2D) -> Bool {
+        return self.latitude == other.latitude && self.longitude == other.longitude
     }
 }

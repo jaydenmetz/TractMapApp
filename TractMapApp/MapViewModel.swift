@@ -1,15 +1,16 @@
 import SwiftUI
 import MapKit
-import CoreLocation
 import Combine
 
 class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var visibleRegion: MKCoordinateRegion?
     @Published var overlays: [MKPolygon] = []
+    @Published var annotations: [MKPointAnnotation] = []
     @Published var showAllOverlays = false
     @Published var currentLocation: CLLocationCoordinate2D?
 
     private var geoJSONOverlays: [MKPolygon] = []
+    private var geoJSONAnnotations: [MKPointAnnotation] = []
     private var locationManager = LocationManager()
     private var isOverlaysLoaded = false
     private var hasSetInitialLocation = false
@@ -30,7 +31,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
         DispatchQueue.global(qos: .userInitiated).async {
             guard let filePath = Bundle.main.url(forResource: "Corrected_MLS_Regional_Neighborhoods_No_FillClr", withExtension: "geojson") else {
-                print("GeoJSON file not found.")
+                print("[ERROR] GeoJSON file not found.")
                 return
             }
 
@@ -48,7 +49,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     self.updateFilteredOverlays()
                 }
             } catch {
-                print("Failed to parse GeoJSON: \(error.localizedDescription)")
+                print("[ERROR] Failed to parse GeoJSON: \(error.localizedDescription)")
             }
         }
     }
@@ -58,18 +59,28 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
         do {
             if let properties = try JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any] {
+                
+                if let lblVal = properties["LblVal"] as? String,
+                   let lblLat = properties["LblLat"] as? Double,
+                   let lblLng = properties["LblLng"] as? Double {
+                    
+                    let annotation = MKPointAnnotation()
+                    annotation.coordinate = CLLocationCoordinate2D(latitude: lblLat, longitude: lblLng)
+                    annotation.title = lblVal
+                    geoJSONAnnotations.append(annotation)
+                    print("[DEBUG - processFeature] Added annotation: \(lblVal)")
+                }
+
                 for geometry in geoFeature.geometry {
                     if let polygon = geometry as? MKPolygon {
                         self.addPolygon(polygon, properties: properties)
                     } else if let multiPolygon = geometry as? MKMultiPolygon {
                         self.processMultiPolygon(multiPolygon, properties: properties)
-                    } else {
-                        print("[DEBUG - processFeature] Unsupported geometry type: \(type(of: geometry))")
                     }
                 }
             }
         } catch {
-            print("Error decoding properties: \(error.localizedDescription)")
+            print("[ERROR] Error decoding properties: \(error.localizedDescription)")
         }
     }
 
@@ -100,8 +111,33 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func updateFilteredOverlays() {
         DispatchQueue.main.async {
-            self.overlays = self.showAllOverlays ? self.geoJSONOverlays : []
-            print("[DEBUG - updateFilteredOverlays] Current visible overlays count: \(self.overlays.count)")
+            if self.showAllOverlays {
+                // Add overlays and annotations
+                self.overlays = self.geoJSONOverlays
+
+                self.annotations = self.geoJSONAnnotations.filter { annotation in
+                    if let matchingOverlay = self.geoJSONOverlays.first(where: { $0.title == annotation.title }),
+                       !matchingOverlay.annotationDisplayed {
+                        matchingOverlay.annotationDisplayed = true
+                        print("[DEBUG - updateFilteredOverlays] Adding annotation for: \(annotation.title ?? "Unknown")")
+                        return true
+                    }
+                    return false
+                }
+            } else {
+                // Remove overlays and annotations
+                self.overlays.removeAll()
+                
+                self.geoJSONOverlays.forEach { overlay in
+                    overlay.annotationDisplayed = false
+                }
+                print("[DEBUG - updateFilteredOverlays] Clearing all overlays and annotations.")
+                
+                self.annotations.removeAll()
+            }
+
+            // Improved log showing internal and MKMapView annotation counts
+            print("[DEBUG - updateFilteredOverlays] Internal Overlays: \(self.overlays.count), Internal Annotations: \(self.annotations.count)")
         }
     }
 
@@ -126,38 +162,23 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func centerMap(on polygon: MKPolygon, mapView: MKMapView) {
         let rect = polygon.boundingMapRect
-        print("[DEBUG] Polygon boundingMapRect: \(rect)")
-
         let padding: CGFloat = 10.0
-        print("[DEBUG] Padding: \(padding)")
 
         DispatchQueue.main.async {
-            // Fit the bounding rect with padding applied
             let paddedRect = mapView.mapRectThatFits(rect, edgePadding: UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding))
-            print("[DEBUG] Padded rect: \(paddedRect)")
-
-            // Convert the padded rect to an MKCoordinateRegion
             let adjustedRegion = MKCoordinateRegion(paddedRect)
-
-            // Ensure latitudeDelta and longitudeDelta are positive
             var safeRegion = adjustedRegion
             safeRegion.span.latitudeDelta = abs(adjustedRegion.span.latitudeDelta)
             safeRegion.span.longitudeDelta = abs(adjustedRegion.span.longitudeDelta)
-
-            print("[DEBUG] Adjusted Region Center: \(safeRegion.center.latitude), \(safeRegion.center.longitude)")
-            print("[DEBUG] Adjusted Region Span: \(safeRegion.span.latitudeDelta), \(safeRegion.span.longitudeDelta)")
-
-            // Assign adjusted region
             self.visibleRegion = safeRegion
         }
     }
-    
+
     private func handleLocationUpdate(_ newLocation: CLLocationCoordinate2D) {
         currentLocation = newLocation
         if !hasSetInitialLocation {
             hasSetInitialLocation = true
             updateVisibleRegion(with: newLocation)
         }
-        print("[DEBUG - handleLocationUpdate] Location updated to: \(newLocation.latitude), \(newLocation.longitude)")
     }
 }
