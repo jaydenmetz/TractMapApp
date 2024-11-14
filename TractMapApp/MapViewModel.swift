@@ -124,18 +124,34 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
-    func centerMap(on polygon: MKPolygon) {
+    func centerMap(on polygon: MKPolygon, mapView: MKMapView) {
         let rect = polygon.boundingMapRect
-        DispatchQueue.main.async {
-            let rawRegion = MKCoordinateRegion(rect)
-            let clampedRegion = rawRegion.clampedToValidRange() // Validate and clamp
+        print("[DEBUG] Polygon boundingMapRect: \(rect)")
 
-            self.visibleRegion = clampedRegion
-            
-            print("[DEBUG - centerMap] Clamped region: \(clampedRegion)")
+        let padding: CGFloat = 10.0
+        print("[DEBUG] Padding: \(padding)")
+
+        DispatchQueue.main.async {
+            // Fit the bounding rect with padding applied
+            let paddedRect = mapView.mapRectThatFits(rect, edgePadding: UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding))
+            print("[DEBUG] Padded rect: \(paddedRect)")
+
+            // Convert the padded rect to an MKCoordinateRegion
+            let adjustedRegion = MKCoordinateRegion(paddedRect)
+
+            // Ensure latitudeDelta and longitudeDelta are positive
+            var safeRegion = adjustedRegion
+            safeRegion.span.latitudeDelta = abs(adjustedRegion.span.latitudeDelta)
+            safeRegion.span.longitudeDelta = abs(adjustedRegion.span.longitudeDelta)
+
+            print("[DEBUG] Adjusted Region Center: \(safeRegion.center.latitude), \(safeRegion.center.longitude)")
+            print("[DEBUG] Adjusted Region Span: \(safeRegion.span.latitudeDelta), \(safeRegion.span.longitudeDelta)")
+
+            // Assign adjusted region
+            self.visibleRegion = safeRegion
         }
     }
-
+    
     private func handleLocationUpdate(_ newLocation: CLLocationCoordinate2D) {
         currentLocation = newLocation
         if !hasSetInitialLocation {

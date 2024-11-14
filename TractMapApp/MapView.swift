@@ -5,7 +5,7 @@ struct MapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     var overlays: [MKOverlay]
     @Binding var recenterTrigger: Bool
-    var onOverlayTapped: (MKPolygon) -> Void
+    var onOverlayTapped: (MKPolygon, MKMapView) -> Void // Updated callback
     @Binding var selectedPolygon: MKPolygon?
 
     func makeUIView(context: Context) -> MKMapView {
@@ -54,45 +54,45 @@ struct MapView: UIViewRepresentable {
 
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
-        var onOverlayTapped: (MKPolygon) -> Void
+        var onOverlayTapped: (MKPolygon, MKMapView) -> Void
 
-        init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon) -> Void) {
+        init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon, MKMapView) -> Void) {
             self.parent = parent
             self.onOverlayTapped = onOverlayTapped
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let polygon = overlay as? MKPolygon {
-                let renderer = MKPolygonRenderer(polygon: polygon)
+                    if let polygon = overlay as? MKPolygon {
+                        let renderer = MKPolygonRenderer(polygon: polygon)
 
-                guard let subtitle = polygon.subtitle else {
-                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
-                    renderer.strokeColor = .black
-                    renderer.lineWidth = 1
-                    return renderer
-                }
+                        guard let subtitle = polygon.subtitle else {
+                            renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
+                            renderer.strokeColor = .black
+                            renderer.lineWidth = 1
+                            return renderer
+                        }
 
-                let properties = subtitle.split(separator: ";").reduce(into: [String: Double]()) { result, component in
-                    let keyValue = component.split(separator: ":")
-                    if keyValue.count == 2, let key = keyValue.first, let value = Double(keyValue.last!) {
-                        result[String(key)] = value
+                        let properties = subtitle.split(separator: ";").reduce(into: [String: Double]()) { result, component in
+                            let keyValue = component.split(separator: ":")
+                            if keyValue.count == 2, let key = keyValue.first, let value = Double(keyValue.last!) {
+                                result[String(key)] = value
+                            }
+                        }
+
+                        let fillColor = UIColor(
+                            red: CGFloat(properties["FillClrR"] ?? 0.5),
+                            green: CGFloat(properties["FillClrG"] ?? 0.5),
+                            blue: CGFloat(properties["FillClrB"] ?? 0.5),
+                            alpha: CGFloat(properties["FillOp"] ?? 0.3)
+                        )
+                        renderer.fillColor = fillColor
+                        renderer.strokeColor = UIColor.black.withAlphaComponent(CGFloat(properties["StrkOp"] ?? 1))
+                        renderer.lineWidth = CGFloat(properties["StrkWt"] ?? 1)
+
+                        return renderer
                     }
+                    return MKOverlayRenderer(overlay: overlay)
                 }
-
-                let fillColor = UIColor(
-                    red: CGFloat(properties["FillClrR"] ?? 0.5),
-                    green: CGFloat(properties["FillClrG"] ?? 0.5),
-                    blue: CGFloat(properties["FillClrB"] ?? 0.5),
-                    alpha: CGFloat(properties["FillOp"] ?? 0.3)
-                )
-                renderer.fillColor = fillColor
-                renderer.strokeColor = UIColor.black.withAlphaComponent(CGFloat(properties["StrkOp"] ?? 1))
-                renderer.lineWidth = CGFloat(properties["StrkWt"] ?? 1)
-
-                return renderer
-            }
-            return MKOverlayRenderer(overlay: overlay)
-        }
 
         @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
             guard let mapView = gestureRecognizer.view as? MKMapView else { return }
@@ -104,7 +104,7 @@ struct MapView: UIViewRepresentable {
                    let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
                    renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
                     print("[DEBUG - handleTap] Polygon tapped: \(polygon.title ?? "Unknown")")
-                    onOverlayTapped(polygon)
+                    onOverlayTapped(polygon, mapView) // Pass the mapView and polygon
                     return
                 }
             }

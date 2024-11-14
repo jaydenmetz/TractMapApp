@@ -15,9 +15,9 @@ struct ContentView: View {
                     region: regionBinding,
                     overlays: viewModel.overlays,
                     recenterTrigger: $recenterTrigger,
-                    onOverlayTapped: { polygon in
+                    onOverlayTapped: { polygon, mapView in
                         selectedPolygon = polygon
-                        viewModel.centerMap(on: polygon)
+                        viewModel.centerMap(on: polygon, mapView: mapView) // Correctly pass mapView here
                         recenterTrigger.toggle()
                     },
                     selectedPolygon: $selectedPolygon
