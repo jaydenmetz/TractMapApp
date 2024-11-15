@@ -1,7 +1,6 @@
 import MapKit
 import ObjectiveC
 
-
 extension MKCoordinateRegion {
     init(_ rect: MKMapRect) {
         let center = CLLocationCoordinate2D(
@@ -46,7 +45,7 @@ extension MKCoordinateRegion {
         )
 
         let clampedSpan = MKCoordinateSpan(
-            latitudeDelta: max(0.001, abs(span.latitudeDelta)), // Prevent negative or too small values
+            latitudeDelta: max(0.001, abs(span.latitudeDelta)),
             longitudeDelta: max(0.001, abs(span.longitudeDelta))
         )
 
@@ -89,5 +88,66 @@ extension MKMapView {
         )
 
         return MKCoordinateRegion(center: center, span: span)
+    }
+}
+
+extension MKPolygon {
+    var fillColorComponents: UIColor {
+        guard let subtitle = self.subtitle else {
+            print("Error: Subtitle missing.")
+            return UIColor.gray.withAlphaComponent(0.5)
+        }
+
+        print("Parsing subtitle:", subtitle) // Debugging subtitle content
+
+        let properties = subtitle
+            .split(separator: ";")
+            .reduce(into: [String: CGFloat]()) { dict, pair in
+                let components = pair.split(separator: ":")
+                if components.count == 2,
+                   let key = components.first?.trimmingCharacters(in: .whitespaces),
+                   let value = Double(components.last!.trimmingCharacters(in: .whitespaces)) {
+                    dict[key] = CGFloat(value)
+                }
+            }
+
+        if let fillR = properties["FillClrR"],
+           let fillG = properties["FillClrG"],
+           let fillB = properties["FillClrB"],
+           (0.0...1.0).contains(fillR),
+           (0.0...1.0).contains(fillG),
+           (0.0...1.0).contains(fillB) {
+            return UIColor(red: fillR, green: fillG, blue: fillB, alpha: 0.5)
+        } else {
+            print("Error: Missing or invalid color components. Defaulting to gray.")
+            return UIColor.gray.withAlphaComponent(0.5)
+        }
+    }
+}
+
+// Utility extension for parsing polygon color
+extension String {
+    func getFillColor() -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat)? {
+        let components = self.split(separator: ";").reduce(into: [String: String]()) { dict, pair in
+            let keyValue = pair.split(separator: ":")
+            if keyValue.count == 2 {
+                dict[String(keyValue[0])] = String(keyValue[1])
+            }
+        }
+
+        guard
+            let redString = components["FillClrR"],
+            let greenString = components["FillClrG"],
+            let blueString = components["FillClrB"],
+            let alphaString = components["FillOp"],
+            let red = Double(redString),
+            let green = Double(greenString),
+            let blue = Double(blueString),
+            let alpha = Double(alphaString)
+        else {
+            return nil
+        }
+
+        return (red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: CGFloat(alpha))
     }
 }

@@ -31,7 +31,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
         DispatchQueue.global(qos: .userInitiated).async {
             guard let filePath = Bundle.main.url(forResource: "Corrected_MLS_Regional_Neighborhoods_No_FillClr", withExtension: "geojson") else {
-                print("[ERROR] GeoJSON file not found.")
+                print("GeoJSON file not found.")
                 return
             }
 
@@ -49,7 +49,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     self.updateFilteredOverlays()
                 }
             } catch {
-                print("[ERROR] Failed to parse GeoJSON: \(error.localizedDescription)")
+                print("Failed to load GeoJSON: \(error)")
             }
         }
     }
@@ -68,7 +68,6 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                     annotation.coordinate = CLLocationCoordinate2D(latitude: lblLat, longitude: lblLng)
                     annotation.title = lblVal
                     geoJSONAnnotations.append(annotation)
-                    print("[DEBUG - processFeature] Added annotation: \(lblVal)")
                 }
 
                 for geometry in geoFeature.geometry {
@@ -80,7 +79,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 }
             }
         } catch {
-            print("[ERROR] Error decoding properties: \(error.localizedDescription)")
+            print("Failed to process GeoJSON feature: \(error)")
         }
     }
 
@@ -106,38 +105,30 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
 
         geoJSONOverlays.append(polygon)
-        print("[DEBUG - addPolygon] Added polygon: \(polygon.title ?? "Unknown")")
     }
 
     func updateFilteredOverlays() {
         DispatchQueue.main.async {
             if self.showAllOverlays {
-                // Add overlays and annotations
                 self.overlays = self.geoJSONOverlays
 
                 self.annotations = self.geoJSONAnnotations.filter { annotation in
                     if let matchingOverlay = self.geoJSONOverlays.first(where: { $0.title == annotation.title }),
                        !matchingOverlay.annotationLoaded {
                         matchingOverlay.annotationLoaded = true
-                        print("[DEBUG - updateFilteredOverlays] Adding annotation for: \(annotation.title ?? "Unknown")")
                         return true
                     }
                     return false
                 }
             } else {
-                // Remove overlays and annotations
                 self.overlays.removeAll()
                 
                 self.geoJSONOverlays.forEach { overlay in
                     overlay.annotationLoaded = false
                 }
-                print("[DEBUG - updateFilteredOverlays] Clearing all overlays and annotations.")
                 
                 self.annotations.removeAll()
             }
-
-            // Improved log showing internal and MKMapView annotation counts
-            print("[DEBUG - updateFilteredOverlays] Internal Overlays: \(self.overlays.count), Internal Annotations: \(self.annotations.count)")
         }
     }
 
@@ -156,13 +147,13 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
             )
         }
     }
+
     private func updateVisibleRegion(with coordinate: CLLocationCoordinate2D) {
         DispatchQueue.main.async {
             self.visibleRegion = MKCoordinateRegion(
                 center: coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
             )
-            print("[DEBUG - updateVisibleRegion] Updated region to: \(coordinate.latitude), \(coordinate.longitude)")
         }
     }
 

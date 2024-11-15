@@ -13,7 +13,7 @@ struct ContentView: View {
                 MapView(
                     region: regionBinding,
                     overlays: viewModel.overlays,
-                    annotations: viewModel.annotations, // Include annotations
+                    annotations: viewModel.annotations,
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon, mapView in
                         selectedPolygon = polygon
