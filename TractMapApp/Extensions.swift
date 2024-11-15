@@ -72,3 +72,22 @@ extension CLLocationCoordinate2D {
         return self.latitude == other.latitude && self.longitude == other.longitude
     }
 }
+
+extension MKMapView {
+    func convertToCoordinateRegion(from mapRect: MKMapRect) -> MKCoordinateRegion {
+        let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
+        let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
+
+        let center = CLLocationCoordinate2D(
+            latitude: (topLeft.latitude + bottomRight.latitude) / 2,
+            longitude: (topLeft.longitude + bottomRight.longitude) / 2
+        )
+
+        let span = MKCoordinateSpan(
+            latitudeDelta: abs(topLeft.latitude - bottomRight.latitude),
+            longitudeDelta: abs(topLeft.longitude - bottomRight.longitude)
+        )
+
+        return MKCoordinateRegion(center: center, span: span)
+    }
+}

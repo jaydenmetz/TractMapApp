@@ -29,7 +29,6 @@ struct MapView: UIViewRepresentable {
                 recenterTrigger = false
             }
 
-            // Remove only non-user annotations and re-add necessary ones
             let nonUserAnnotations = uiView.annotations.filter { !($0 is MKUserLocation) }
             if nonUserAnnotations.count != annotations.count || !nonUserAnnotations.elementsEqual(annotations, by: { $0.coordinate.isEqual(to: $1.coordinate) && $0.title == $1.title }) {
                 uiView.removeAnnotations(nonUserAnnotations)
@@ -37,7 +36,6 @@ struct MapView: UIViewRepresentable {
                 print("[DEBUG - updateUIView] Updated annotations. Non-user removed: \(nonUserAnnotations.count), added: \(annotations.count)")
             }
 
-            // Overlay logic
             let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
             let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
 
@@ -53,8 +51,9 @@ struct MapView: UIViewRepresentable {
                 print("[DEBUG - updateUIView] Added overlays count: \(overlaysToAdd.count)")
             }
 
-            // Log final counts
             print("[DEBUG - updateUIView] Final overlays count: \(uiView.overlays.count), annotations count: \(uiView.annotations.count)")
+
+            context.coordinator.adjustAnnotationLabels(for: uiView)
         }
     }
 
@@ -65,6 +64,8 @@ struct MapView: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapView
         var onOverlayTapped: (MKPolygon, MKMapView) -> Void
+        private let minFontSize: CGFloat = 6
+        private let maxFontSize: CGFloat = 30
 
         init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon, MKMapView) -> Void) {
             self.parent = parent
@@ -74,30 +75,9 @@ struct MapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-
-                guard let subtitle = polygon.subtitle else {
-                    renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
-                    renderer.strokeColor = .black
-                    renderer.lineWidth = 1
-                    return renderer
-                }
-
-                let properties = subtitle.split(separator: ";").reduce(into: [String: Double]()) { result, component in
-                    let keyValue = component.split(separator: ":")
-                    if keyValue.count == 2, let key = keyValue.first, let value = Double(keyValue.last!) {
-                        result[String(key)] = value
-                    }
-                }
-
-                renderer.fillColor = UIColor(
-                    red: CGFloat(properties["FillClrR"] ?? 0.5),
-                    green: CGFloat(properties["FillClrG"] ?? 0.5),
-                    blue: CGFloat(properties["FillClrB"] ?? 0.5),
-                    alpha: CGFloat(properties["FillOp"] ?? 0.3)
-                )
-                renderer.strokeColor = UIColor.black.withAlphaComponent(CGFloat(properties["StrkOp"] ?? 1))
-                renderer.lineWidth = CGFloat(properties["StrkWt"] ?? 1)
-
+                renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
+                renderer.strokeColor = .black
+                renderer.lineWidth = 1
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -119,6 +99,11 @@ struct MapView: UIViewRepresentable {
             }
         }
 
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+            print("[DEBUG] Visible region changed. Adjusting labels...")
+            adjustAnnotationLabels(for: mapView)
+        }
+
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard annotation !== mapView.userLocation else { return nil }
 
@@ -126,19 +111,79 @@ struct MapView: UIViewRepresentable {
             annotationView.annotation = annotation
             annotationView.canShowCallout = false
 
-            // Remove any existing subviews to prevent duplication
             annotationView.subviews.forEach { $0.removeFromSuperview() }
 
             let label = UILabel()
             label.text = annotation.title ?? ""
             label.textColor = .black
-            label.font = UIFont.boldSystemFont(ofSize: 12)
             label.sizeToFit()
             annotationView.addSubview(label)
             label.center = CGPoint(x: annotationView.bounds.midX, y: -label.bounds.height / 2)
-            print("[DEBUG - Annotation View] Added label '\(label.text ?? "Unknown")' at center: \(label.center)")
-
             return annotationView
+        }
+
+        func adjustAnnotationLabels(for mapView: MKMapView) {
+            for annotation in mapView.annotations {
+                guard let annotationView = mapView.view(for: annotation) as? MKAnnotationView,
+                      let label = annotationView.subviews.first as? UILabel else {
+                    print("[DEBUG] Skipping annotation - annotation view or label missing for '\(annotation.title ?? "Unknown")'")
+                    continue
+                }
+                
+                // Find a matching overlay
+                guard let overlay = parent.overlays.first(where: { ($0 as? MKPolygon)?.title == annotation.title }) as? MKPolygon else {
+                    print("[DEBUG] Skipping annotation - no matching overlay for '\(annotation.title ?? "Unknown")'")
+                    continue
+                }
+
+                let overlayBoundingMapRect = overlay.boundingMapRect
+                
+                // Convert to screen rect for accurate placement
+                let topLeftMapPoint = MKMapPoint(x: overlayBoundingMapRect.minX, y: overlayBoundingMapRect.minY)
+                let bottomRightMapPoint = MKMapPoint(x: overlayBoundingMapRect.maxX, y: overlayBoundingMapRect.maxY)
+
+                let topLeftScreenPoint = mapView.convert(topLeftMapPoint.coordinate, toPointTo: mapView)
+                let bottomRightScreenPoint = mapView.convert(bottomRightMapPoint.coordinate, toPointTo: mapView)
+
+                let overlayBoundingRect = CGRect(
+                    origin: topLeftScreenPoint,
+                    size: CGSize(
+                        width: abs(bottomRightScreenPoint.x - topLeftScreenPoint.x),
+                        height: abs(bottomRightScreenPoint.y - topLeftScreenPoint.y)
+                    )
+                )
+
+                let maxWidth = overlayBoundingRect.width * 0.9
+                let maxHeight = overlayBoundingRect.height * 0.9
+
+                print("[DEBUG] Max Width: \(maxWidth), Max Height: \(maxHeight) for '\(annotation.title ?? "Unknown")'")
+
+                var fontSize = maxFontSize
+                while fontSize > minFontSize {
+                    let testLabel = UILabel()
+                    testLabel.font = UIFont.boldSystemFont(ofSize: fontSize)
+                    testLabel.text = label.text
+                    testLabel.sizeToFit()
+
+                    if testLabel.frame.width <= maxWidth && testLabel.frame.height <= maxHeight {
+                        break
+                    }
+                    fontSize -= 1
+                }
+
+                print("[DEBUG] Font Size for '\(annotation.title ?? "Unknown")': \(fontSize)")
+
+                label.font = UIFont.boldSystemFont(ofSize: fontSize)
+                label.sizeToFit()
+
+                if fontSize < minFontSize {
+                    label.isHidden = true
+                    print("[DEBUG] Hidden: Label too small for '\(annotation.title ?? "Unknown")'")
+                } else {
+                    label.isHidden = false
+                    print("[DEBUG] Visible: Label adjusted for '\(annotation.title ?? "Unknown")'")
+                }
+            }
         }
     }
 }

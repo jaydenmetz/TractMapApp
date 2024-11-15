@@ -148,8 +148,14 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func centerToCurrentLocation() {
         locationManager.requestCurrentLocation()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard let location = self.currentLocation else { return }
+            self.visibleRegion = MKCoordinateRegion(
+                center: location,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        }
     }
-
     private func updateVisibleRegion(with coordinate: CLLocationCoordinate2D) {
         DispatchQueue.main.async {
             self.visibleRegion = MKCoordinateRegion(
