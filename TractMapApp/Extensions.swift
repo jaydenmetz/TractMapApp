@@ -54,15 +54,15 @@ extension MKCoordinateRegion {
     }
 }
 
-private var annotationDisplayedKey: UInt8 = 0
+private var annotationLoadedKey: UInt8 = 0
 
 extension MKPolygon {
-    var annotationDisplayed: Bool {
+    var annotationLoaded: Bool {
         get {
-            objc_getAssociatedObject(self, &annotationDisplayedKey) as? Bool ?? false
+            return objc_getAssociatedObject(self, &annotationLoadedKey) as? Bool ?? false
         }
         set {
-            objc_setAssociatedObject(self, &annotationDisplayedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            objc_setAssociatedObject(self, &annotationLoadedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
     }
 }

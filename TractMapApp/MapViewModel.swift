@@ -117,8 +117,8 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
                 self.annotations = self.geoJSONAnnotations.filter { annotation in
                     if let matchingOverlay = self.geoJSONOverlays.first(where: { $0.title == annotation.title }),
-                       !matchingOverlay.annotationDisplayed {
-                        matchingOverlay.annotationDisplayed = true
+                       !matchingOverlay.annotationLoaded {
+                        matchingOverlay.annotationLoaded = true
                         print("[DEBUG - updateFilteredOverlays] Adding annotation for: \(annotation.title ?? "Unknown")")
                         return true
                     }
@@ -129,7 +129,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
                 self.overlays.removeAll()
                 
                 self.geoJSONOverlays.forEach { overlay in
-                    overlay.annotationDisplayed = false
+                    overlay.annotationLoaded = false
                 }
                 print("[DEBUG - updateFilteredOverlays] Clearing all overlays and annotations.")
                 

@@ -73,14 +73,30 @@ struct MapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let polygon = overlay as? MKPolygon {
+            if let polygon = overlay as? MKPolygon,
+               let overlayTitle = polygon.title,
+               let jsonData = overlayTitle.data(using: .utf8),
+               let properties = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                
+                // Extract color values from properties
+                let red = properties["FillClrR"] as? CGFloat ?? 0.5
+                let green = properties["FillClrG"] as? CGFloat ?? 0.5
+                let blue = properties["FillClrB"] as? CGFloat ?? 0.5
+                
                 let renderer = MKPolygonRenderer(polygon: polygon)
-                renderer.fillColor = UIColor.gray.withAlphaComponent(0.3)
+                renderer.fillColor = UIColor(red: red, green: green, blue: blue, alpha: 0.5)
                 renderer.strokeColor = .black
                 renderer.lineWidth = 1
+                
                 return renderer
             }
-            return MKOverlayRenderer(overlay: overlay)
+
+            // Fallback default renderer
+            let fallbackRenderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
+            fallbackRenderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
+            fallbackRenderer.strokeColor = .black
+            fallbackRenderer.lineWidth = 1
+            return fallbackRenderer
         }
 
         @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
@@ -130,21 +146,24 @@ struct MapView: UIViewRepresentable {
                     continue
                 }
                 
-                // Find a matching overlay
                 guard let overlay = parent.overlays.first(where: { ($0 as? MKPolygon)?.title == annotation.title }) as? MKPolygon else {
                     print("[DEBUG] Skipping annotation - no matching overlay for '\(annotation.title ?? "Unknown")'")
                     continue
                 }
 
+                if overlay.annotationLoaded {
+                    print("[DEBUG] Skipping label adjustment for '\(annotation.title ?? "Unknown")' (already loaded)")
+                    continue
+                }
+
+                // Your existing label adjustment logic...
                 let overlayBoundingMapRect = overlay.boundingMapRect
-                
-                // Convert to screen rect for accurate placement
                 let topLeftMapPoint = MKMapPoint(x: overlayBoundingMapRect.minX, y: overlayBoundingMapRect.minY)
                 let bottomRightMapPoint = MKMapPoint(x: overlayBoundingMapRect.maxX, y: overlayBoundingMapRect.maxY)
-
+                
                 let topLeftScreenPoint = mapView.convert(topLeftMapPoint.coordinate, toPointTo: mapView)
                 let bottomRightScreenPoint = mapView.convert(bottomRightMapPoint.coordinate, toPointTo: mapView)
-
+                
                 let overlayBoundingRect = CGRect(
                     origin: topLeftScreenPoint,
                     size: CGSize(
@@ -155,8 +174,6 @@ struct MapView: UIViewRepresentable {
 
                 let maxWidth = overlayBoundingRect.width * 0.9
                 let maxHeight = overlayBoundingRect.height * 0.9
-
-                print("[DEBUG] Max Width: \(maxWidth), Max Height: \(maxHeight) for '\(annotation.title ?? "Unknown")'")
 
                 var fontSize = maxFontSize
                 while fontSize > minFontSize {
@@ -178,11 +195,13 @@ struct MapView: UIViewRepresentable {
 
                 if fontSize < minFontSize {
                     label.isHidden = true
-                    print("[DEBUG] Hidden: Label too small for '\(annotation.title ?? "Unknown")'")
                 } else {
                     label.isHidden = false
-                    print("[DEBUG] Visible: Label adjusted for '\(annotation.title ?? "Unknown")'")
                 }
+
+                // Mark the polygon's annotation as loaded
+                overlay.annotationLoaded = true
+                print("[DEBUG] Label loaded for '\(annotation.title ?? "Unknown")'")
             }
         }
     }
