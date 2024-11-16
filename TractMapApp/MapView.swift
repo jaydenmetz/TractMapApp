@@ -15,7 +15,7 @@ struct MapView: UIViewRepresentable {
         mapView.showsUserLocation = true
         mapView.setRegion(region, animated: false)
         mapView.mapType = .mutedStandard
-        
+
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapGesture)
 
@@ -29,30 +29,21 @@ struct MapView: UIViewRepresentable {
                 recenterTrigger = false
             }
 
-            let nonUserAnnotations = uiView.annotations.filter { !($0 is MKUserLocation) }
-            if nonUserAnnotations.count != annotations.count || !nonUserAnnotations.elementsEqual(annotations, by: { $0.coordinate.isEqual(to: $1.coordinate) && $0.title == $1.title }) {
-                uiView.removeAnnotations(nonUserAnnotations)
-                uiView.addAnnotations(annotations)
-                print("Added new annotations.")
-            }
-
             let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
             let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
 
             let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
             uiView.removeOverlays(overlaysToRemove)
+            print("Removed overlays: \(overlaysToRemove.map { $0.description })")
 
             let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
             uiView.addOverlays(overlaysToAdd)
+            print("Added overlays: \(overlaysToAdd.map { $0.description })")
 
-            print("Updated overlays.")
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                context.coordinator.adjustAnnotationLabels(for: uiView)
-            }
+            print("Current overlays count: \(uiView.overlays.count)")
         }
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self, onOverlayTapped: onOverlayTapped)
     }
@@ -68,7 +59,8 @@ struct MapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
-                let renderer = MKPolygonRenderer(polygon: polygon)
+                let renderer = TextPolygonRenderer(polygon: polygon)
+                renderer.title = polygon.title // Pass title to custom renderer
 
                 if let subtitle = polygon.subtitle,
                    let fillColorComponents = subtitle.getFillColor() {
@@ -90,45 +82,56 @@ struct MapView: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
 
-        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard !(annotation is MKUserLocation) else { return nil }
-
-            let reuseIdentifier = "CustomAnnotation"
-            var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: reuseIdentifier)
-
-            if annotationView == nil {
-                annotationView = MKAnnotationView(annotation: annotation, reuseIdentifier: reuseIdentifier)
-                annotationView?.isEnabled = false
-                annotationView?.canShowCallout = false
-
-                let label = UILabel()
-                label.textAlignment = .center
-                label.numberOfLines = 0
-                label.font = UIFont.boldSystemFont(ofSize: 12)
-                label.backgroundColor = .clear
-                label.tag = 100
-                annotationView?.addSubview(label)
-            } else {
-                annotationView?.annotation = annotation
+        private func renderTextInsidePolygon(_ renderer: MKPolygonRenderer, title: String) {
+            // Get the current graphics context
+            guard let context = UIGraphicsGetCurrentContext() else {
+                print("Failed to render text: Missing graphics context.")
+                return
             }
 
-            annotationView?.image = nil
+            // Calculate the centroid of the polygon
+            let polygon = renderer.polygon
+            let points = polygon.points()
+            let pointCount = polygon.pointCount
 
-            guard let label = annotationView?.viewWithTag(100) as? UILabel else {
-                print("Failed to find label for annotation: \(annotation.title ?? "Unknown").")
-                return annotationView
+            var xSum: CGFloat = 0
+            var ySum: CGFloat = 0
+
+            for i in 0..<pointCount {
+                let point = points[i]
+                let mapPoint = MKMapPoint(x: point.x, y: point.y)
+                let cgPoint = renderer.point(for: mapPoint)
+                xSum += cgPoint.x
+                ySum += cgPoint.y
             }
 
-            label.text = annotation.title ?? ""
-            label.sizeToFit()
-            label.center = CGPoint(x: annotationView!.bounds.midX, y: annotationView!.bounds.midY)
+            let centroid = CGPoint(x: xSum / CGFloat(pointCount), y: ySum / CGFloat(pointCount))
 
-            print("Created/updated annotation view for: \(annotation.title ?? "Unknown")")
-            return annotationView
-        }
+            // Define text attributes
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
 
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            adjustAnnotationLabels(for: mapView)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 10),
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: UIColor.black
+            ]
+
+            // Measure the text size
+            let textSize = (title as NSString).size(withAttributes: attributes)
+            let textRect = CGRect(
+                x: centroid.x - textSize.width / 2,
+                y: centroid.y - textSize.height / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+
+            // Draw the text
+            context.saveGState()
+            title.draw(in: textRect, withAttributes: attributes)
+            context.restoreGState()
+
+            print("Rendered text '\(title)' at centroid: \(centroid)")
         }
 
         @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
@@ -140,47 +143,76 @@ struct MapView: UIViewRepresentable {
                 if let polygon = overlay as? MKPolygon,
                    let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
                    renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
+                    print("Tapped polygon with title: \(polygon.title ?? "No Title")")
                     onOverlayTapped(polygon, mapView)
                     return
                 }
             }
+            print("No polygon tapped.")
+        }
+    }
+}
+
+class TextPolygonRenderer: MKPolygonRenderer {
+    var title: String?
+
+    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+        super.draw(mapRect, zoomScale: zoomScale, in: context)
+
+        guard let title = title else { return }
+
+        // Calculate the centroid of the polygon in map coordinates
+        let polygon = self.polygon
+        let points = polygon.points()
+        let pointCount = polygon.pointCount
+
+        var area: Double = 0
+        var xSum: Double = 0
+        var ySum: Double = 0
+
+        for i in 0..<pointCount {
+            let current = points[i].coordinate
+            let next = points[(i + 1) % pointCount].coordinate
+
+            let areaStep = current.latitude * next.longitude - next.latitude * current.longitude
+            area += areaStep
+            xSum += (current.latitude + next.latitude) * areaStep
+            ySum += (current.longitude + next.longitude) * areaStep
         }
 
-        func adjustAnnotationLabels(for mapView: MKMapView) {
-            print("adjustAnnotationLabels called.")
-            print("Overlays count: \(mapView.overlays.count)")
-            print("Annotations count: \(mapView.annotations.count)")
+        area *= 0.5
+        xSum /= (6 * area)
+        ySum /= (6 * area)
 
-            for annotation in mapView.annotations {
-                guard let annotationView = mapView.view(for: annotation) as? MKAnnotationView else {
-                    print("No annotation view found for annotation: \(annotation.title ?? "Unknown"). Skipping.")
-                    continue
-                }
+        let centroidCoordinate = CLLocationCoordinate2D(latitude: xSum, longitude: ySum)
+        let centroidPoint = self.point(for: MKMapPoint(centroidCoordinate))
 
-                guard let polygon = mapView.overlays.compactMap({ $0 as? MKPolygon }).first(where: {
-                    $0.subtitle == annotation.subtitle
-                }) else {
-                    print("No matching polygon found for annotation: \(annotation.title ?? "Unknown") with subtitle: \(annotation.subtitle ?? "None"). Skipping.")
-                    continue
-                }
+        // Define text attributes
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
 
-                print("Adjusting label for annotation: \(annotation.title ?? "Unknown") matching polygon with subtitle: \(polygon.subtitle ?? "None")")
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12 / zoomScale),
+            .paragraphStyle: paragraphStyle,
+            .foregroundColor: UIColor.black
+        ]
 
-                guard let label = annotationView.subviews.first(where: { $0.tag == 100 }) as? UILabel else {
-                    print("No label found in annotation view for annotation: \(annotation.title ?? "Unknown"). Skipping.")
-                    continue
-                }
+        // Measure the text size
+        let textSize = (title as NSString).size(withAttributes: attributes)
+        let textRect = CGRect(
+            x: centroidPoint.x - textSize.width / 2,
+            y: centroidPoint.y - textSize.height / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
 
-                let mapRect = polygon.boundingMapRect
-                let centerPoint = mapView.convert(MKMapPoint(polygon.coordinate).coordinate, toPointTo: annotationView)
+        // Draw the text
+        context.saveGState()
+        UIGraphicsPushContext(context)
+        title.draw(in: textRect, withAttributes: attributes)
+        UIGraphicsPopContext()
+        context.restoreGState()
 
-                let fontSize = max(8, min(mapView.visibleMapRect.width / 50, 18))
-                label.text = annotation.title ?? ""
-                label.font = UIFont.boldSystemFont(ofSize: fontSize)
-                label.textAlignment = .center
-                label.center = centerPoint
-                label.isHidden = fontSize < 8 || mapRect.size.width < 200
-            }
-        }
+        print("Rendered text '\(title)' at centroid: \(centroidCoordinate)")
     }
 }

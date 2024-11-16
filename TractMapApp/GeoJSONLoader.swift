@@ -12,22 +12,11 @@ class GeoJSONLoader {
                     for geometry in feature.geometry {
                         if let polygon = geometry as? MKPolygon {
                             if let propertiesData = feature.properties,
-                               let propertiesDict = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any] {
-
-                                if let propertiesDict = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any] {
-                                    if let label = propertiesDict["LblVal"] as? String {
-                                        polygon.title = label
-                                    }
-
-                                    let subtitle = propertiesDict.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
-                                    polygon.subtitle = subtitle
-
-                                    print("Polygon title: \(polygon.title ?? "No Title")")
-                                    print("Polygon subtitle: \(polygon.subtitle ?? "No Subtitle")")
-                                }
+                               let propertiesDict = try? JSONSerialization.jsonObject(with: propertiesData, options: []) as? [String: Any],
+                               let label = propertiesDict["LblVal"] as? String {
+                                polygon.title = label
+                                polygons.append(polygon)
                             }
-
-                            polygons.append(polygon)
                         }
                     }
                 }
