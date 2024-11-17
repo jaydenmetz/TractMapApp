@@ -973,15 +973,16 @@
       "properties": {
         "LblLat": 35.3747683263936,
         "LblLng": -119.025140077214,
+        "LblVal": "Central Bakersfield",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "Central Bakersfield",
-        "Z": 1,
         "FillClrR": 0.94,
         "FillClrG": 0.95,
-        "FillClrB": 0.84
+        "FillClrB": 0.84,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -1424,15 +1425,16 @@
       "properties": {
         "LblLat": 35.3735331242388,
         "LblLng": -118.985934604242,
+        "LblVal": "East Bakersfield",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "East Bakersfield",
-        "Z": 1,
         "FillClrR": 0.88,
         "FillClrG": 0.95,
-        "FillClrB": 0.77
+        "FillClrB": 0.77,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -2555,15 +2557,16 @@
       "properties": {
         "LblLat": 35.4326485553174,
         "LblLng": -119.042080103085,
+        "LblVal": "North Bakersfield",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "North Bakersfield",
-        "Z": 1,
         "FillClrR": 0.89,
         "FillClrG": 0.93,
-        "FillClrB": 0.94
+        "FillClrB": 0.94,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -3150,15 +3153,16 @@
       "properties": {
         "LblLat": 35.3138265488584,
         "LblLng": -119.021464507254,
+        "LblVal": "South Bakersfield",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "South Bakersfield",
-        "Z": 1,
         "FillClrR": 0.96,
         "FillClrG": 0.87,
-        "FillClrB": 0.77
+        "FillClrB": 0.77,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -6713,15 +6717,16 @@
       "properties": {
         "LblLat": 35.3920292196274,
         "LblLng": -119.155254851896,
+        "LblVal": "The Northwest",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "The Northwest",
-        "Z": 1,
         "FillClrR": 0.91,
         "FillClrG": 0.88,
-        "FillClrB": 0.96
+        "FillClrB": 0.96,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -8424,15 +8429,16 @@
       "properties": {
         "LblLat": 35.3898221149987,
         "LblLng": -118.967305480914,
+        "LblVal": "The Northeast",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "The Northeast",
-        "Z": 1,
         "FillClrR": 0.77,
         "FillClrG": 0.91,
-        "FillClrB": 0.89
+        "FillClrB": 0.89,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -8883,15 +8889,16 @@
       "properties": {
         "LblLat": 35.3186879662288,
         "LblLng": -118.973555536489,
+        "LblVal": "The Southeast",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "The Southeast",
-        "Z": 1,
         "FillClrR": 0.85,
         "FillClrG": 0.94,
-        "FillClrB": 0.91
+        "FillClrB": 0.91,
+        "FillOp": 0.3,
+        "Z": 1
       }
     },
     {
@@ -12206,22 +12213,23 @@
       "properties": {
         "LblLat": 35.3116533480513,
         "LblLng": -119.107192184626,
+        "LblVal": "The Southwest",
+        "FntSiz": 24,
         "StrkClr": "lightGray",
         "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.3,
-        "LblVal": "The Southwest",
-        "Z": 1,
         "FillClrR": 0.92,
         "FillClrG": 0.89,
-        "FillClrB": 0.77
+        "FillClrB": 0.77,
+        "FillOp": 0.3,
+        "Z": 1
       }
     }
   ],
   "crs": {
     "type": "name",
     "properties": {
-      "name": ""
+      "name": "urn:ogc:def:crs:EPSG::4326"
     }
   }
 }
