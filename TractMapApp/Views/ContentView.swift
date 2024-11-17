@@ -2,27 +2,33 @@ import SwiftUI
 import MapKit
 
 struct ContentView: View {
-    @StateObject private var viewModel = MapViewModel()
+    @ObservedObject private var viewModel = MapViewModel()
+    @StateObject private var locationManager = LocationManager()
     @State private var recenterTrigger = false
-    @State private var selectedPolygon: MKPolygon?
     @State private var showingLayerOptions = false
 
     var body: some View {
         ZStack {
             if let region = viewModel.visibleRegion {
                 MapView(
-                    region: regionBinding,
+                    region: Binding(
+                        get: { region },
+                        set: { viewModel.visibleRegion = $0 }
+                    ),
                     overlays: viewModel.overlays,
                     annotations: viewModel.annotations,
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon, mapView in
-                        selectedPolygon = polygon
+                        viewModel.selectPolygon(polygon)
                         viewModel.centerMap(on: polygon, mapView: mapView)
                         recenterTrigger.toggle()
                     },
-                    selectedPolygon: $selectedPolygon
+                    selectedPolygon: $viewModel.selectedPolygon
                 )
                 .edgesIgnoringSafeArea(.all)
+                .sheet(item: $viewModel.selectedPolygon) { polygon in
+                    PolygonDetailsView(polygon: polygon)
+                }
             } else {
                 Text("Loading map...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -31,15 +37,28 @@ struct ContentView: View {
             buttonsAndDropdownOverlay()
         }
         .onAppear {
-            viewModel.loadGeoJSONOverlays()
+            viewModel.loadGeoJSONIfNeeded()
+            updateRegionToUserLocation()
+        }
+        .onReceive(locationManager.$lastLocation) { newLocation in
+            if let location = newLocation {
+                viewModel.visibleRegion = MKCoordinateRegion(
+                    center: location,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                )
+            }
         }
     }
 
-    private var regionBinding: Binding<MKCoordinateRegion> {
-        Binding(
-            get: { viewModel.visibleRegion ?? MKCoordinateRegion() },
-            set: { viewModel.visibleRegion = $0 }
-        )
+    private func updateRegionToUserLocation() {
+        if let userLocation = locationManager.lastLocation {
+            viewModel.visibleRegion = MKCoordinateRegion(
+                center: userLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        } else {
+            locationManager.requestCurrentLocation()
+        }
     }
 
     private func buttonsAndDropdownOverlay() -> some View {
@@ -70,31 +89,37 @@ struct ContentView: View {
 
     private var dropdownMenu: some View {
         VStack(spacing: 5) {
-            HStack {
-                Text("Regional Neighborhoods")
-                    .font(.caption)
-                    .foregroundColor(.black)
-                Spacer()
-                if viewModel.showAllOverlays {
-                    Image(systemName: "checkmark.square.fill")
-                        .foregroundColor(.blue)
-                } else {
-                    Image(systemName: "square")
-                        .foregroundColor(.gray)
-                }
-            }
-            .contentShape(Rectangle())
-            .padding(5)
-            .background(Color.white)
-            .cornerRadius(8)
-            .onTapGesture {
-                viewModel.toggleAllOverlays()
-            }
+            toggleButton(label: "Regional Neighborhoods", isOn: $viewModel.showRegionalNeighborhoods)
+            toggleButton(label: "Neighborhoods", isOn: $viewModel.showNeighborhoods)
+            toggleButton(label: "Subdivisions", isOn: $viewModel.showSubdivisions)
         }
         .padding()
         .background(Color.white)
         .cornerRadius(10)
         .shadow(radius: 5)
+    }
+
+    private func toggleButton(label: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.black)
+            Spacer()
+            if isOn.wrappedValue {
+                Image(systemName: "checkmark.square.fill")
+                    .foregroundColor(.blue)
+            } else {
+                Image(systemName: "square")
+                    .foregroundColor(.gray)
+            }
+        }
+        .contentShape(Rectangle())
+        .padding(5)
+        .background(Color.white)
+        .cornerRadius(8)
+        .onTapGesture {
+            isOn.wrappedValue.toggle()
+        }
     }
 
     private var buttonStack: some View {

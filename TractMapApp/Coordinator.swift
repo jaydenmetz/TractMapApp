@@ -12,13 +12,24 @@ class Coordinator: NSObject, MKMapViewDelegate {
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if let polygon = overlay as? MKPolygon {
             let renderer = Overlay(polygon: polygon)
-            
-            // Debugging subtitle
+
+            // Extract color properties from subtitle or polygon metadata
+            if let fillColor = parseFillColor(from: polygon.subtitle) {
+                renderer.fillColor = UIColor(
+                    red: fillColor.red,
+                    green: fillColor.green,
+                    blue: fillColor.blue,
+                    alpha: fillColor.alpha
+                )
+            } else {
+                renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.3)
+            }
+            renderer.lineWidth = 1.0
+            renderer.strokeColor = UIColor.lightGray
+
             print("Polygon subtitle: \(polygon.subtitle ?? "No Subtitle")")
-            
             return renderer
         }
-        
         return MKOverlayRenderer(overlay: overlay)
     }
 
@@ -39,55 +50,34 @@ class Coordinator: NSObject, MKMapViewDelegate {
         print("No polygon tapped.")
     }
 
-    private func renderTextInsidePolygon(_ renderer: MKPolygonRenderer, title: String) {
-        // Get the current graphics context
-        guard let context = UIGraphicsGetCurrentContext() else {
-            print("Failed to render text: Missing graphics context.")
-            return
+    private func parseFillColor(from subtitle: String?) -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat)? {
+        guard let subtitle = subtitle else { return nil }
+
+        let components = subtitle.split(separator: ";")
+        var red: CGFloat?
+        var green: CGFloat?
+        var blue: CGFloat?
+        var alpha: CGFloat?
+
+        for component in components {
+            let keyValue = component.split(separator: ":")
+            guard keyValue.count == 2 else { continue }
+
+            let key = keyValue[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = CGFloat((keyValue[1] as NSString).floatValue)
+
+            switch key {
+            case "FillClrR": red = value
+            case "FillClrG": green = value
+            case "FillClrB": blue = value
+            case "FillOp": alpha = value
+            default: break
+            }
         }
 
-        // Calculate the centroid of the polygon
-        let polygon = renderer.polygon
-        let points = polygon.points()
-        let pointCount = polygon.pointCount
-
-        var xSum: CGFloat = 0
-        var ySum: CGFloat = 0
-
-        for i in 0..<pointCount {
-            let point = points[i]
-            let mapPoint = MKMapPoint(x: point.x, y: point.y)
-            let cgPoint = renderer.point(for: mapPoint)
-            xSum += cgPoint.x
-            ySum += cgPoint.y
+        if let red = red, let green = green, let blue = blue, let alpha = alpha {
+            return (red, green, blue, alpha)
         }
-
-        let centroid = CGPoint(x: xSum / CGFloat(pointCount), y: ySum / CGFloat(pointCount))
-
-        // Define text attributes
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .center
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 10),
-            .paragraphStyle: paragraphStyle,
-            .foregroundColor: UIColor.black
-        ]
-
-        // Measure the text size
-        let textSize = (title as NSString).size(withAttributes: attributes)
-        let textRect = CGRect(
-            x: centroid.x - textSize.width / 2,
-            y: centroid.y - textSize.height / 2,
-            width: textSize.width,
-            height: textSize.height
-        )
-
-        // Draw the text
-        context.saveGState()
-        title.draw(in: textRect, withAttributes: attributes)
-        context.restoreGState()
-
-        print("Rendered text '\(title)' at centroid: \(centroid)")
+        return nil
     }
 }
