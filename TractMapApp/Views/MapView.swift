@@ -68,6 +68,6 @@ struct MapView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         print("Coordinator created.")
-        return Coordinator(self, onOverlayTapped: onOverlayTapped)
+        return Coordinator(self, selectedPolygon: $selectedPolygon, onOverlayTapped: onOverlayTapped)
     }
 }

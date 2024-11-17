@@ -7,8 +7,17 @@ struct ContentView: View {
     @State private var recenterTrigger = false
     @State private var showingLayerOptions = false
 
+    // Define the positions
+    private let topPosition: CGFloat = UIScreen.main.bounds.height * 0.05
+    private let halfwayPosition: CGFloat = UIScreen.main.bounds.height * 0.5
+    private let bottomPosition: CGFloat = UIScreen.main.bounds.height * 0.85
+    
+    @State private var cardPosition: CGFloat = UIScreen.main.bounds.height * 0.85
+    @State private var dragOffset: CGFloat = 0
+
     var body: some View {
         ZStack {
+            // Map view
             if let region = viewModel.visibleRegion {
                 MapView(
                     region: Binding(
@@ -22,19 +31,41 @@ struct ContentView: View {
                         viewModel.selectPolygon(polygon)
                         viewModel.centerMap(on: polygon, mapView: mapView)
                         recenterTrigger.toggle()
+                        withAnimation {
+                            cardPosition = halfwayPosition
+                        }
                     },
                     selectedPolygon: $viewModel.selectedPolygon
                 )
                 .edgesIgnoringSafeArea(.all)
-                .sheet(item: $viewModel.selectedPolygon) { polygon in
-                    PolygonDetailsView(polygon: polygon)
-                }
             } else {
                 Text("Loading map...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
+            // Bottom card
+            BottomCard(polygon: viewModel.selectedPolygon, cardPosition: $cardPosition)
+                .offset(y: max(cardPosition + dragOffset, topPosition))
+                .gesture(
+                    DragGesture()
+                        .onChanged { gesture in
+                            dragOffset = gesture.translation.height
+                        }
+                        .onEnded { _ in
+                            withAnimation {
+                                if dragOffset > 50 {
+                                    cardPosition = cardPosition == halfwayPosition ? bottomPosition : halfwayPosition
+                                } else if dragOffset < -50 {
+                                    cardPosition = cardPosition == halfwayPosition ? topPosition : halfwayPosition
+                                }
+                                dragOffset = 0
+                            }
+                        }
+                )
+            
+            // Buttons and dropdown
             buttonsAndDropdownOverlay()
+                .offset(y: cardPosition - UIScreen.main.bounds.height + 75 + dragOffset)
         }
         .onAppear {
             viewModel.loadGeoJSONIfNeeded()
@@ -62,26 +93,19 @@ struct ContentView: View {
     }
 
     private func buttonsAndDropdownOverlay() -> some View {
-        GeometryReader { _ in
-            VStack {
+        VStack {
+            Spacer()
+            HStack {
                 Spacer()
-
-                HStack {
-                    Spacer()
-
-                    VStack(alignment: .trailing) {
-                        if showingLayerOptions {
-                            Spacer()
-                            dropdownMenu
-                                .frame(width: 180)
-                                .padding(.trailing, 15)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
-                        }
-
-                        buttonStack
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 20)
+                VStack(alignment: .trailing) {
+                    if showingLayerOptions {
+                        Spacer()
+                        dropdownMenu
+                            .frame(width: 180)
+                            .padding(.trailing, 15)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
+                    buttonStack
                 }
             }
         }

@@ -2,6 +2,7 @@ import Foundation
 import MapKit
 
 class MapViewModel: ObservableObject {
+    @Published var lastLocation: CLLocationCoordinate2D?
     @Published var overlays: [MKOverlay] = []
     @Published var annotations: [MKPointAnnotation] = []
     @Published var visibleRegion: MKCoordinateRegion?
@@ -15,6 +16,13 @@ class MapViewModel: ObservableObject {
     @Published var showSubdivisions = false {
         didSet { loadGeoJSONIfNeeded() }
     }
+    
+    init() {
+            // Initialize LocationManager and observe location updates
+            let locationManager = LocationManager()
+            locationManager.$lastLocation
+                .assign(to: &$lastLocation)
+        }
 
     func loadGeoJSONIfNeeded() {
         overlays = []
@@ -56,7 +64,45 @@ class MapViewModel: ObservableObject {
     }
 
     func centerMap(on polygon: MKPolygon, mapView: MKMapView) {
-        let boundingRect = polygon.boundingMapRect
-        mapView.setVisibleMapRect(boundingRect, edgePadding: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50), animated: true)
+        let mapRect = polygon.boundingMapRect
+        let screenHeight = UIScreen.main.bounds.height
+        let topHalfHeight = screenHeight / 2
+        let padding: CGFloat = 25
+
+        // Convert the mapRect's corners to coordinates
+        let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
+        let topRight = MKMapPoint(x: mapRect.maxX, y: mapRect.minY).coordinate
+        let bottomLeft = MKMapPoint(x: mapRect.minX, y: mapRect.maxY).coordinate
+        let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
+
+        // Find the latitudes and longitudes of the bounding coordinates
+        let latitudes = [topLeft.latitude, topRight.latitude, bottomLeft.latitude, bottomRight.latitude]
+        let longitudes = [topLeft.longitude, topRight.longitude, bottomLeft.longitude, bottomRight.longitude]
+
+        let minLatitude = latitudes.min() ?? 0
+        let maxLatitude = latitudes.max() ?? 0
+        let minLongitude = longitudes.min() ?? 0
+        let maxLongitude = longitudes.max() ?? 0
+
+        // Calculate padding in map units for latitude
+        let latPadding = mapView.region.span.latitudeDelta * padding / mapView.bounds.height
+
+        // Calculate the center latitude to ensure the bottom of the polygon aligns near the middle of the screen.
+        let adjustedCenterLatitude = (maxLatitude + minLatitude) / 2 - ((maxLatitude - minLatitude) / 2) - latPadding / 2
+
+        // Set up the new region ensuring the polygon fits in the top half of the screen
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: adjustedCenterLatitude,
+                longitude: (maxLongitude + minLongitude) / 2
+            ),
+            span: MKCoordinateSpan(
+                latitudeDelta: (maxLatitude - minLatitude) + latPadding,
+                longitudeDelta: (maxLongitude - minLongitude) + latPadding
+            )
+        )
+
+        mapView.setRegion(region, animated: true)
+        self.visibleRegion = region
     }
 }

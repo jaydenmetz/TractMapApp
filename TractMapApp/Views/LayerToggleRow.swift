@@ -5,7 +5,6 @@
 //  Created by Jayden Metz on 11/16/24.
 //
 
-
 import SwiftUI
 
 struct LayerToggleRow: View {

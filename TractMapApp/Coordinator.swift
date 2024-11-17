@@ -1,11 +1,14 @@
 import MapKit
+import SwiftUI
 
 class Coordinator: NSObject, MKMapViewDelegate {
     var parent: MapView
     var onOverlayTapped: (MKPolygon, MKMapView) -> Void
-
-    init(_ parent: MapView, onOverlayTapped: @escaping (MKPolygon, MKMapView) -> Void) {
+    var selectedPolygon: Binding<MKPolygon?>
+    
+    init(_ parent: MapView, selectedPolygon: Binding<MKPolygon?>, onOverlayTapped: @escaping (MKPolygon, MKMapView) -> Void) {
         self.parent = parent
+        self.selectedPolygon = selectedPolygon
         self.onOverlayTapped = onOverlayTapped
     }
 
@@ -32,7 +35,7 @@ class Coordinator: NSObject, MKMapViewDelegate {
         }
         return MKOverlayRenderer(overlay: overlay)
     }
-
+    
     @objc func handleTap(_ gestureRecognizer: UITapGestureRecognizer) {
         guard let mapView = gestureRecognizer.view as? MKMapView else { return }
         let tapPoint = gestureRecognizer.location(in: mapView)
@@ -43,6 +46,7 @@ class Coordinator: NSObject, MKMapViewDelegate {
                let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
                renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
                 print("Tapped polygon with title: \(polygon.title ?? "No Title")")
+                parent.selectedPolygon = polygon // Ensure this updates the binding
                 onOverlayTapped(polygon, mapView)
                 return
             }
