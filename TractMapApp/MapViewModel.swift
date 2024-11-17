@@ -30,7 +30,7 @@ class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard !isOverlaysLoaded else { return }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let filePath = Bundle.main.url(forResource: "Corrected_MLS_Regional_Neighborhoods_No_FillClr", withExtension: "geojson") else {
+            guard let filePath = Bundle.main.url(forResource: "Regional Neighborhoods", withExtension: "geojson") else {
                 print("GeoJSON file not found.")
                 return
             }

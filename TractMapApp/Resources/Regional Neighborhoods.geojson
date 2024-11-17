@@ -971,18 +971,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 19,
         "LblLat": 35.3747683263936,
         "LblLng": -119.025140077214,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "Central Bakersfield",
         "Z": 1,
-        "FillClrR": 0.92,
-        "FillClrG": 0.87,
-        "FillClrB": 0.87
+        "FillClrR": 0.94,
+        "FillClrG": 0.95,
+        "FillClrB": 0.84
       }
     },
     {
@@ -1423,18 +1422,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 44,
         "LblLat": 35.3735331242388,
         "LblLng": -118.985934604242,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "East Bakersfield",
         "Z": 1,
-        "FillClrR": 0.77,
-        "FillClrG": 0.91,
-        "FillClrB": 0.89
+        "FillClrR": 0.88,
+        "FillClrG": 0.95,
+        "FillClrB": 0.77
       }
     },
     {
@@ -2555,18 +2553,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 83,
         "LblLat": 35.4326485553174,
         "LblLng": -119.042080103085,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "North Bakersfield",
         "Z": 1,
-        "FillClrR": 0.88,
-        "FillClrG": 0.75,
-        "FillClrB": 0.99
+        "FillClrR": 0.89,
+        "FillClrG": 0.93,
+        "FillClrB": 0.94
       }
     },
     {
@@ -3151,18 +3148,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 110,
         "LblLat": 35.3138265488584,
         "LblLng": -119.021464507254,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "South Bakersfield",
         "Z": 1,
-        "FillClrR": 0.78,
+        "FillClrR": 0.96,
         "FillClrG": 0.87,
-        "FillClrB": 0.84
+        "FillClrB": 0.77
       }
     },
     {
@@ -6715,18 +6711,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 114,
         "LblLat": 35.3920292196274,
         "LblLng": -119.155254851896,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "The Northwest",
         "Z": 1,
-        "FillClrR": 0.79,
-        "FillClrG": 0.95,
-        "FillClrB": 0.77
+        "FillClrR": 0.91,
+        "FillClrG": 0.88,
+        "FillClrB": 0.96
       }
     },
     {
@@ -8427,13 +8422,12 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 136,
         "LblLat": 35.3898221149987,
         "LblLng": -118.967305480914,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "The Northeast",
         "Z": 1,
         "FillClrR": 0.77,
@@ -8887,18 +8881,17 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 138,
         "LblLat": 35.3186879662288,
         "LblLng": -118.973555536489,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "The Southeast",
         "Z": 1,
-        "FillClrR": 0.93,
-        "FillClrG": 0.98,
-        "FillClrB": 0.76
+        "FillClrR": 0.85,
+        "FillClrG": 0.94,
+        "FillClrB": 0.91
       }
     },
     {
@@ -12211,17 +12204,16 @@
       },
       "geometry_name": "geom",
       "properties": {
-        "ogr_fid": 140,
         "LblLat": 35.3116533480513,
         "LblLng": -119.107192184626,
-        "StrkClr": 94,
-        "StrkWt": 2,
+        "StrkClr": "lightGray",
+        "StrkWt": 1,
         "StrkOp": 1,
-        "FillOp": 0.5,
+        "FillOp": 0.3,
         "LblVal": "The Southwest",
         "Z": 1,
-        "FillClrR": 0.88,
-        "FillClrG": 0.94,
+        "FillClrR": 0.92,
+        "FillClrG": 0.89,
         "FillClrB": 0.77
       }
     }

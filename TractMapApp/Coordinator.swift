@@ -12,26 +12,13 @@ class Coordinator: NSObject, MKMapViewDelegate {
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if let polygon = overlay as? MKPolygon {
             let renderer = Overlay(polygon: polygon)
-            renderer.title = polygon.title // Pass title to custom renderer
             
-            // Check if subtitle contains fill color components
-            if let subtitle = polygon.subtitle,
-               let fillColorComponents = subtitle.getFillColor() {
-                renderer.fillColor = UIColor(
-                    red: fillColorComponents.red,
-                    green: fillColorComponents.green,
-                    blue: fillColorComponents.blue,
-                    alpha: fillColorComponents.alpha
-                )
-            } else {
-                renderer.fillColor = UIColor.gray.withAlphaComponent(0.5)
-            }
-
-            renderer.strokeColor = UIColor.black.withAlphaComponent(1.0)
-            renderer.lineWidth = 2
+            // Debugging subtitle
+            print("Polygon subtitle: \(polygon.subtitle ?? "No Subtitle")")
+            
             return renderer
         }
-
+        
         return MKOverlayRenderer(overlay: overlay)
     }
 
