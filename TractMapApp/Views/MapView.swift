@@ -86,7 +86,6 @@ struct MapView: UIViewRepresentable {
         let newAnnotations = Set(annotations.map { HashableCoordinate(coordinate: $0.coordinate) })
 
         if currentAnnotations != newAnnotations {
-            print("Updating annotations. Removing \(mapView.annotations.count) and adding \(annotations.count).")
             mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotations(annotations)
         }

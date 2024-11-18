@@ -70,3 +70,56 @@ extension MKCoordinateRegion {
         )
     }
 }
+
+extension MKPolygon {
+    /// Parses the subtitle string to extract polygon properties.
+    func getExtendedProperties() -> [String: Any]? {
+        guard let subtitle = self.subtitle else {
+            print("Subtitle is missing for polygon titled: \(self.title ?? "Unknown")")
+            return nil
+        }
+        
+        var properties: [String: Any] = [:]
+        
+        let keyValuePairs = subtitle.split(separator: ";")
+        for pair in keyValuePairs {
+            let keyValue = pair.split(separator: ":")
+            guard keyValue.count == 2 else { continue }
+            
+            let key = String(keyValue[0])
+            let value = String(keyValue[1])
+            
+            // Handle known keys and convert to correct types
+            switch key {
+            case "StrkClr":
+                properties["StrkClr"] = value
+            case "StrkWt":
+                properties["StrkWt"] = CGFloat(Double(value) ?? 1.0)
+            case "StrkOp":
+                properties["StrkOp"] = CGFloat(Double(value) ?? 1.0)
+            case "FillClrR":
+                properties["FillClrR"] = CGFloat(Double(value) ?? 0.5)
+            case "FillClrG":
+                properties["FillClrG"] = CGFloat(Double(value) ?? 0.5)
+            case "FillClrB":
+                properties["FillClrB"] = CGFloat(Double(value) ?? 0.5)
+            case "FillOp":
+                properties["FillOp"] = CGFloat(Double(value) ?? 0.3)
+            case "LblVal":
+                properties["LblVal"] = value
+            case "LblLat":
+                properties["LblLat"] = CLLocationDegrees(Double(value) ?? 0.0)
+            case "LblLng":
+                properties["LblLng"] = CLLocationDegrees(Double(value) ?? 0.0)
+            case "FntSiz":
+                properties["FntSiz"] = CGFloat(Double(value) ?? 12.0)
+            case "z":
+                properties["Z"] = Int(value) ?? 0
+            default:
+                print("Unknown property key: \(key)")
+            }
+        }
+        
+        return properties
+    }
+}

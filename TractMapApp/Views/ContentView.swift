@@ -201,6 +201,10 @@ struct ContentView: View {
             Button(action: {
                 viewModel.centerToCurrentLocation()
                 locationManager.startContinuousLocationUpdates()
+                
+                withAnimation {
+                    cardPosition = bottomPosition
+                }
             }) {
                 Image(systemName: "location.fill")
                     .foregroundColor(.white)
