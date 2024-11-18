@@ -15,8 +15,6 @@ extension String {
                 print("Malformed component: \(component)") // Debugging malformed part
             }
         }
-
-        print("Parsed properties: \(properties)") // Debug parsed properties
         
         guard let fillColorR = properties["FillClrR"].flatMap({ CGFloat(Double($0) ?? 0.0) }),
               let fillColorG = properties["FillClrG"].flatMap({ CGFloat(Double($0) ?? 0.0) }),

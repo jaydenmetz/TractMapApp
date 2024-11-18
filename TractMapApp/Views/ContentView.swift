@@ -5,10 +5,10 @@ struct ContentView: View {
     @ObservedObject private var viewModel = MapViewModel()
     @StateObject private var locationManager = LocationManager()
     @State private var recenterTrigger = false
-    @State private var showingLayerOptions = false    
+    @State private var showingLayerOptions = false
 
     // Define the positions
-    private let topPosition: CGFloat = UIScreen.main.bounds.height * 0.05
+    private let topPosition: CGFloat = UIScreen.main.bounds.height * 0.15
     private let halfwayPosition: CGFloat = UIScreen.main.bounds.height * 0.5
     private let bottomPosition: CGFloat = UIScreen.main.bounds.height * 0.85
 
@@ -28,13 +28,16 @@ struct ContentView: View {
                             }
                         }
                     ),
-                    overlays: viewModel.overlays,
+                    overlays: viewModel.overlays.sorted(by: {
+                        (extractZIndex(from: $0) ?? 0) > (extractZIndex(from: $1) ?? 0)
+                    }),
                     annotations: viewModel.annotations,
                     recenterTrigger: $recenterTrigger,
                     onOverlayTapped: { polygon, mapView in
                         viewModel.selectPolygon(polygon)
                         viewModel.centerMap(on: polygon, mapView: mapView)
                         recenterTrigger.toggle()
+                        showingLayerOptions = false
                         withAnimation {
                             cardPosition = halfwayPosition
                         }
@@ -208,5 +211,13 @@ struct ContentView: View {
             }
         }
         .fixedSize()
+    }
+
+    private func extractZIndex(from overlay: MKOverlay) -> Int? {
+        guard let polygon = overlay as? MKPolygon,
+              let subtitle = polygon.subtitle,
+              let zString = subtitle.split(separator: ";").first(where: { $0.starts(with: "z:") })?.split(separator: ":").last,
+              let zIndex = Int(zString) else { return nil }
+        return zIndex
     }
 }

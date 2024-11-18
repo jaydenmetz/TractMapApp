@@ -81,42 +81,25 @@ class MapViewModel: ObservableObject {
 
     func centerMap(on polygon: MKPolygon, mapView: MKMapView) {
         let mapRect = polygon.boundingMapRect
+        let padding: CGFloat = 10
+
+        // Calculate the visible portion of the screen
         let screenHeight = UIScreen.main.bounds.height
         let topHalfHeight = screenHeight / 2
-        let padding: CGFloat = 25
 
-        // Convert the mapRect's corners to coordinates
-        let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
-        let topRight = MKMapPoint(x: mapRect.maxX, y: mapRect.minY).coordinate
-        let bottomLeft = MKMapPoint(x: mapRect.minX, y: mapRect.maxY).coordinate
-        let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
-
-        let latitudes = [topLeft.latitude, topRight.latitude, bottomLeft.latitude, bottomRight.latitude]
-        let longitudes = [topLeft.longitude, topRight.longitude, bottomLeft.longitude, bottomRight.longitude]
-
-        let minLatitude = latitudes.min() ?? 0
-        let maxLatitude = latitudes.max() ?? 0
-        let minLongitude = longitudes.min() ?? 0
-        let maxLongitude = longitudes.max() ?? 0
-
-        let latPadding = mapView.region.span.latitudeDelta * padding / mapView.bounds.height
-
-        let adjustedCenterLatitude = (maxLatitude + minLatitude) / 2 - ((maxLatitude - minLatitude) / 2) - latPadding / 2
-
-        let region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(
-                latitude: adjustedCenterLatitude,
-                longitude: (maxLongitude + minLongitude) / 2
-            ),
-            span: MKCoordinateSpan(
-                latitudeDelta: (maxLatitude - minLatitude) + latPadding,
-                longitudeDelta: (maxLongitude - minLongitude) + latPadding
-            )
+        let edgePadding = UIEdgeInsets(
+            top: padding,
+            left: padding,
+            bottom: screenHeight - topHalfHeight + padding,
+            right: padding
         )
 
-        mapView.setRegion(region, animated: true)
-        visibleRegion = region
+        let adjustedMapRect = mapView.mapRectThatFits(mapRect, edgePadding: edgePadding)
+
+        // Update the visible region
+        visibleRegion = mapView.regionThatFits(MKCoordinateRegion(adjustedMapRect))
     }
+    
     private func updateVisibleRegionIfNeeded() {
         guard let currentLocation = lastLocation,
               visibleRegion == nil || !isLocationInVisibleRegion(currentLocation) else { return }

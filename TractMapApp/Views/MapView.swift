@@ -25,58 +25,83 @@ struct MapView: UIViewRepresentable {
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
         DispatchQueue.main.async {
-            // Update region if recentering is triggered
             if recenterTrigger {
                 print("Recentering map to region: \(region)")
-                uiView.setRegion(region, animated: true)
+                if !areRegionsEqual(uiView.region, region) {
+                    uiView.setRegion(region, animated: true)
+                }
                 recenterTrigger = false
             } else if !areRegionsEqual(uiView.region, region) {
+                print("Animating to new region.")
                 uiView.setRegion(region, animated: true)
+            } else {
+                print("Region unchanged; skipping animation.")
             }
+        }
+            // Overlays logic remains unchanged
+            updateOverlays(uiView)
 
-            // Handle overlays
-            let currentOverlaysSet = Set(uiView.overlays.map { ObjectIdentifier($0) })
-            let newOverlaysSet = Set(overlays.map { ObjectIdentifier($0) })
+            // Annotations comparison and update
+            updateAnnotations(uiView)
 
-            let overlaysToRemove = uiView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
-            let overlaysToAdd = overlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
-
-            if !overlaysToRemove.isEmpty {
-                print("Removing \(overlaysToRemove.count) overlays.")
-                uiView.removeOverlays(overlaysToRemove)
-            }
-
-            if !overlaysToAdd.isEmpty {
-                print("Adding \(overlaysToAdd.count) overlays.")
-                uiView.addOverlays(overlaysToAdd)
-            }
-
-            // Handle annotations by comparing coordinates manually
-            let currentAnnotations = uiView.annotations.map { $0.coordinate }
-            let newAnnotations = annotations.map { $0.coordinate }
-
-            if currentAnnotations != newAnnotations {
-                print("Updating annotations. Removing \(uiView.annotations.count) and adding \(annotations.count).")
-                uiView.removeAnnotations(uiView.annotations)
-                uiView.addAnnotations(annotations)
-            }
-
-            // Log current map status
             print("Current overlays count: \(uiView.overlays.count)")
             print("Current annotations count: \(uiView.annotations.count)")
+    }
+
+    func updateOverlays(_ mapView: MKMapView) {
+        // Sort overlays by z-index in descending order (highest z on top)
+        let sortedOverlays = overlays.sorted {
+            let z1 = extractZIndex(from: $0) ?? 0
+            let z2 = extractZIndex(from: $1) ?? 0
+            return z1 > z2
+        }
+
+        let currentOverlaysSet = Set(mapView.overlays.map { ObjectIdentifier($0) })
+        let newOverlaysSet = Set(sortedOverlays.map { ObjectIdentifier($0) })
+
+        let overlaysToRemove = mapView.overlays.filter { !newOverlaysSet.contains(ObjectIdentifier($0)) }
+        let overlaysToAdd = sortedOverlays.filter { !currentOverlaysSet.contains(ObjectIdentifier($0)) }
+
+        if !overlaysToRemove.isEmpty {
+            print("Removing \(overlaysToRemove.count) overlays.")
+            mapView.removeOverlays(overlaysToRemove)
+        }
+
+        if !overlaysToAdd.isEmpty {
+            print("Adding \(overlaysToAdd.count) overlays.")
+            mapView.addOverlays(overlaysToAdd)
         }
     }
 
+    private func extractZIndex(from overlay: MKOverlay) -> Int? {
+        guard let polygon = overlay as? MKPolygon,
+              let label = polygon.accessibilityLabel,
+              let zString = label.split(separator: ":").last,
+              let zIndex = Int(zString) else { return nil }
+        return zIndex
+    }
+
+    func updateAnnotations(_ mapView: MKMapView) {
+        let currentAnnotations = Set(mapView.annotations.map { HashableCoordinate(coordinate: $0.coordinate) })
+        let newAnnotations = Set(annotations.map { HashableCoordinate(coordinate: $0.coordinate) })
+
+        if currentAnnotations != newAnnotations {
+            print("Updating annotations. Removing \(mapView.annotations.count) and adding \(annotations.count).")
+            mapView.removeAnnotations(mapView.annotations)
+            mapView.addAnnotations(annotations)
+        }
+    }
+    
     func makeCoordinator() -> Coordinator {
         print("Coordinator created.")
         return Coordinator(self, selectedPolygon: $selectedPolygon, onOverlayTapped: onOverlayTapped)
     }
 
-    private func areRegionsEqual(_ region1: MKCoordinateRegion, _ region2: MKCoordinateRegion) -> Bool {
-        let epsilon = 0.00001
-        return abs(region1.center.latitude - region2.center.latitude) < epsilon &&
-               abs(region1.center.longitude - region2.center.longitude) < epsilon &&
-               abs(region1.span.latitudeDelta - region2.span.latitudeDelta) < epsilon &&
-               abs(region1.span.longitudeDelta - region2.span.longitudeDelta) < epsilon
+    func areRegionsEqual(_ region1: MKCoordinateRegion, _ region2: MKCoordinateRegion, tolerance: Double = 0.0001) -> Bool {
+        let centerDiff = abs(region1.center.latitude - region2.center.latitude) < tolerance &&
+                         abs(region1.center.longitude - region2.center.longitude) < tolerance
+        let spanDiff = abs(region1.span.latitudeDelta - region2.span.latitudeDelta) < tolerance &&
+                       abs(region1.span.longitudeDelta - region2.span.longitudeDelta) < tolerance
+        return centerDiff && spanDiff
     }
 }

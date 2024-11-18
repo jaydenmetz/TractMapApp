@@ -41,17 +41,33 @@ class Coordinator: NSObject, MKMapViewDelegate {
         let tapPoint = gestureRecognizer.location(in: mapView)
         let tapCoordinate = mapView.convert(tapPoint, toCoordinateFrom: mapView)
 
-        for overlay in mapView.overlays {
-            if let polygon = overlay as? MKPolygon,
-               let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
-               renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true {
-                print("Tapped polygon with title: \(polygon.title ?? "No Title")")
-                parent.selectedPolygon = polygon // Ensure this updates the binding
-                onOverlayTapped(polygon, mapView)
-                return
+        // Find all polygons under the tapped point
+        let tappedOverlays = mapView.overlays.compactMap { overlay -> MKPolygon? in
+            guard let polygon = overlay as? MKPolygon,
+                  let renderer = mapView.renderer(for: polygon) as? MKPolygonRenderer,
+                  renderer.path?.contains(renderer.point(for: MKMapPoint(tapCoordinate))) == true else {
+                return nil
             }
+            return polygon
         }
-        print("No polygon tapped.")
+
+        // Sort polygons by z-index and select the topmost one
+        if let topPolygon = tappedOverlays.sorted(by: {
+            (extractZIndex(from: $0) ?? 0) > (extractZIndex(from: $1) ?? 0)
+        }).first {
+            print("Tapped polygon with highest z-index: \(topPolygon.title ?? "Unknown")")
+            parent.selectedPolygon = topPolygon // Update the binding
+            onOverlayTapped(topPolygon, mapView)
+        } else {
+            print("No polygon tapped.")
+        }
+    }
+
+    private func extractZIndex(from polygon: MKPolygon) -> Int? {
+        guard let label = polygon.accessibilityLabel,
+              let zString = label.split(separator: ":").last,
+              let zIndex = Int(zString) else { return nil }
+        return zIndex
     }
 
     private func parseFillColor(from subtitle: String?) -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat)? {

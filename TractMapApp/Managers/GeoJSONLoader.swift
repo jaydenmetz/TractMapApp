@@ -59,21 +59,40 @@ class GeoJSONLoader {
     private static func configurePolygon(_ polygon: MKPolygon, with properties: [String: Any]) {
         polygon.title = properties["LblVal"] as? String
 
-        if let strokeColorName = properties["StrkClr"] as? String,
-           let strokeWeight = properties["StrkWt"] as? CGFloat,
-           let strokeOpacity = properties["StrkOp"] as? CGFloat,
-           let fillColorR = properties["FillClrR"] as? CGFloat,
-           let fillColorG = properties["FillClrG"] as? CGFloat,
-           let fillColorB = properties["FillClrB"] as? CGFloat,
-           let fillOpacity = properties["FillOp"] as? CGFloat {
-
-            polygon.subtitle = """
-            StrkClr:\(strokeColorName);StrkWt:\(strokeWeight);StrkOp:\(strokeOpacity);
-            FillClrR:\(fillColorR);FillClrG:\(fillColorG);FillClrB:\(fillColorB);FillOp:\(fillOpacity)
-            """
-            print("Configured polygon with title: \(polygon.title ?? "Unknown Title")")
-        } else {
-            print("Missing custom properties for polygon: \(polygon.title ?? "Unknown Title")")
+        // Initialize subtitle with all relevant properties, including z-index
+        var subtitleComponents = [String]()
+        
+        if let strokeColorName = properties["StrkClr"] as? String {
+            subtitleComponents.append("StrkClr:\(strokeColorName)")
         }
+        if let strokeWeight = properties["StrkWt"] as? CGFloat {
+            subtitleComponents.append("StrkWt:\(strokeWeight)")
+        }
+        if let strokeOpacity = properties["StrkOp"] as? CGFloat {
+            subtitleComponents.append("StrkOp:\(strokeOpacity)")
+        }
+        if let fillColorR = properties["FillClrR"] as? CGFloat {
+            subtitleComponents.append("FillClrR:\(fillColorR)")
+        }
+        if let fillColorG = properties["FillClrG"] as? CGFloat {
+            subtitleComponents.append("FillClrG:\(fillColorG)")
+        }
+        if let fillColorB = properties["FillClrB"] as? CGFloat {
+            subtitleComponents.append("FillClrB:\(fillColorB)")
+        }
+        if let fillOpacity = properties["FillOp"] as? CGFloat {
+            subtitleComponents.append("FillOp:\(fillOpacity)")
+        }
+        if let zIndex = properties["Z"] as? Int {
+            subtitleComponents.append("z:\(zIndex)")
+            polygon.accessibilityLabel = "z:\(zIndex)" // Retain for sorting logic
+            print("Set z-index \(zIndex) for polygon with title: \(polygon.title ?? "Unknown Title")")
+        } else {
+            print("No z-index provided for polygon: \(polygon.title ?? "Unknown Title")")
+        }
+
+        // Set subtitle
+        polygon.subtitle = subtitleComponents.joined(separator: ";")
+        print("Configured polygon with subtitle: \(polygon.subtitle ?? "None")")
     }
 }
