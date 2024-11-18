@@ -1,40 +1,56 @@
-//
-//  LocationManager.swift
-//  TractMapApp
-//
-//  Created by Jayden Metz on 11/10/24.
-//
-
 import Foundation
 import CoreLocation
+import Combine
 
 class LocationManager: NSObject, ObservableObject {
     private let locationManager = CLLocationManager()
-    @Published var lastLocation: CLLocationCoordinate2D? // Provide the latest location
-
+    
+    @Published var lastLocation: CLLocationCoordinate2D?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    
     override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
+        checkAuthorization()
+    }
+    
+    func checkAuthorization() {
+        let status = locationManager.authorizationStatus
+        authorizationStatus = status
+        
+        if status == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+        } else if status == .authorizedWhenInUse || status == .authorizedAlways {
+            startContinuousLocationUpdates()
+        }
+    }
+    
+    func startContinuousLocationUpdates() {
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 10
         locationManager.startUpdatingLocation()
     }
-
+    
     func requestCurrentLocation() {
-        locationManager.startUpdatingLocation()
+        locationManager.requestLocation()
     }
 }
 
 extension LocationManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let newLocation = locations.last else { return }
-        lastLocation = newLocation.coordinate
-        print("Location updated: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
-        
-        // Stop updating if only one-shot request is needed
-        locationManager.stopUpdatingLocation()
+        guard let location = locations.last else { return }
+        DispatchQueue.main.async {
+            self.lastLocation = location.coordinate
+        }
     }
-
+    
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Failed to get location: \(error.localizedDescription)")
+        print("Location update failed: \(error.localizedDescription)")
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        DispatchQueue.main.async {
+            self.checkAuthorization()
+        }
     }
 }

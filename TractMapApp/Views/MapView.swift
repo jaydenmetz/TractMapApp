@@ -30,6 +30,8 @@ struct MapView: UIViewRepresentable {
                 print("Recentering map to region: \(region)")
                 uiView.setRegion(region, animated: true)
                 recenterTrigger = false
+            } else if !areRegionsEqual(uiView.region, region) {
+                uiView.setRegion(region, animated: true)
             }
 
             // Handle overlays
@@ -53,7 +55,6 @@ struct MapView: UIViewRepresentable {
             let currentAnnotations = uiView.annotations.map { $0.coordinate }
             let newAnnotations = annotations.map { $0.coordinate }
 
-            // Compare annotations only when coordinates differ
             if currentAnnotations != newAnnotations {
                 print("Updating annotations. Removing \(uiView.annotations.count) and adding \(annotations.count).")
                 uiView.removeAnnotations(uiView.annotations)
@@ -69,5 +70,13 @@ struct MapView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator {
         print("Coordinator created.")
         return Coordinator(self, selectedPolygon: $selectedPolygon, onOverlayTapped: onOverlayTapped)
+    }
+
+    private func areRegionsEqual(_ region1: MKCoordinateRegion, _ region2: MKCoordinateRegion) -> Bool {
+        let epsilon = 0.00001
+        return abs(region1.center.latitude - region2.center.latitude) < epsilon &&
+               abs(region1.center.longitude - region2.center.longitude) < epsilon &&
+               abs(region1.span.latitudeDelta - region2.span.latitudeDelta) < epsilon &&
+               abs(region1.span.longitudeDelta - region2.span.longitudeDelta) < epsilon
     }
 }

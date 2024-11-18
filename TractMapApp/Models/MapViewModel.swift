@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import Combine
 
 class MapViewModel: ObservableObject {
     @Published var lastLocation: CLLocationCoordinate2D?
@@ -16,13 +17,25 @@ class MapViewModel: ObservableObject {
     @Published var showSubdivisions = false {
         didSet { loadGeoJSONIfNeeded() }
     }
-    
+    @Published var regionUpdateTrigger = UUID()
+
+    private var locationManager: LocationManager
+    private var cancellables: Set<AnyCancellable> = []
+
     init() {
-            // Initialize LocationManager and observe location updates
-            let locationManager = LocationManager()
-            locationManager.$lastLocation
-                .assign(to: &$lastLocation)
-        }
+        locationManager = LocationManager()
+        bindToLocationUpdates()
+    }
+
+    private func bindToLocationUpdates() {
+        locationManager.$lastLocation
+            .sink { [weak self] location in
+                guard let self = self else { return }
+                self.lastLocation = location
+                self.updateVisibleRegionIfNeeded()
+            }
+            .store(in: &cancellables)
+    }
 
     func loadGeoJSONIfNeeded() {
         overlays = []
@@ -51,11 +64,14 @@ class MapViewModel: ObservableObject {
     }
 
     func centerToCurrentLocation() {
-        if let currentLocation = LocationManager().lastLocation {
+        if let currentLocation = lastLocation {
             visibleRegion = MKCoordinateRegion(
                 center: currentLocation,
-                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                span: MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
             )
+            print("Centered on current location: \(currentLocation)")
+        } else {
+            print("Current location not available.")
         }
     }
 
@@ -75,7 +91,6 @@ class MapViewModel: ObservableObject {
         let bottomLeft = MKMapPoint(x: mapRect.minX, y: mapRect.maxY).coordinate
         let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
 
-        // Find the latitudes and longitudes of the bounding coordinates
         let latitudes = [topLeft.latitude, topRight.latitude, bottomLeft.latitude, bottomRight.latitude]
         let longitudes = [topLeft.longitude, topRight.longitude, bottomLeft.longitude, bottomRight.longitude]
 
@@ -84,13 +99,10 @@ class MapViewModel: ObservableObject {
         let minLongitude = longitudes.min() ?? 0
         let maxLongitude = longitudes.max() ?? 0
 
-        // Calculate padding in map units for latitude
         let latPadding = mapView.region.span.latitudeDelta * padding / mapView.bounds.height
 
-        // Calculate the center latitude to ensure the bottom of the polygon aligns near the middle of the screen.
         let adjustedCenterLatitude = (maxLatitude + minLatitude) / 2 - ((maxLatitude - minLatitude) / 2) - latPadding / 2
 
-        // Set up the new region ensuring the polygon fits in the top half of the screen
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(
                 latitude: adjustedCenterLatitude,
@@ -103,6 +115,20 @@ class MapViewModel: ObservableObject {
         )
 
         mapView.setRegion(region, animated: true)
-        self.visibleRegion = region
+        visibleRegion = region
+    }
+    private func updateVisibleRegionIfNeeded() {
+        guard let currentLocation = lastLocation,
+              visibleRegion == nil || !isLocationInVisibleRegion(currentLocation) else { return }
+        centerToCurrentLocation()
+    }
+
+    private func isLocationInVisibleRegion(_ location: CLLocationCoordinate2D) -> Bool {
+        guard let region = visibleRegion else { return false }
+
+        let latRange = (region.center.latitude - region.span.latitudeDelta / 2)...(region.center.latitude + region.span.latitudeDelta / 2)
+        let lonRange = (region.center.longitude - region.span.longitudeDelta / 2)...(region.center.longitude + region.span.longitudeDelta / 2)
+
+        return latRange.contains(location.latitude) && lonRange.contains(location.longitude)
     }
 }

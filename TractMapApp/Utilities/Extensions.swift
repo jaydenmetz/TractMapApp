@@ -44,3 +44,31 @@ extension CLLocationCoordinate2D: Equatable {
         return lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
     }
 }
+
+extension MKCoordinateRegion {
+    func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let latitudeWithinBounds = (center.latitude - span.latitudeDelta / 2) <= coordinate.latitude
+            && coordinate.latitude <= (center.latitude + span.latitudeDelta / 2)
+        let longitudeWithinBounds = (center.longitude - span.longitudeDelta / 2) <= coordinate.longitude
+            && coordinate.longitude <= (center.longitude + span.longitudeDelta / 2)
+        return latitudeWithinBounds && longitudeWithinBounds
+    }
+}
+
+extension MKCoordinateRegion {
+    func toMKMapRect() -> MKMapRect {
+        let topLeft = MKMapPoint(CLLocationCoordinate2D(
+            latitude: center.latitude + span.latitudeDelta / 2,
+            longitude: center.longitude - span.longitudeDelta / 2
+        ))
+        let bottomRight = MKMapPoint(CLLocationCoordinate2D(
+            latitude: center.latitude - span.latitudeDelta / 2,
+            longitude: center.longitude + span.longitudeDelta / 2
+        ))
+
+        return MKMapRect(
+            origin: MKMapPoint(x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y)),
+            size: MKMapSize(width: abs(topLeft.x - bottomRight.x), height: abs(topLeft.y - bottomRight.y))
+        )
+    }
+}

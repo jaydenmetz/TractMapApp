@@ -5,13 +5,13 @@ struct ContentView: View {
     @ObservedObject private var viewModel = MapViewModel()
     @StateObject private var locationManager = LocationManager()
     @State private var recenterTrigger = false
-    @State private var showingLayerOptions = false
+    @State private var showingLayerOptions = false    
 
     // Define the positions
     private let topPosition: CGFloat = UIScreen.main.bounds.height * 0.05
     private let halfwayPosition: CGFloat = UIScreen.main.bounds.height * 0.5
     private let bottomPosition: CGFloat = UIScreen.main.bounds.height * 0.85
-    
+
     @State private var cardPosition: CGFloat = UIScreen.main.bounds.height * 0.85
     @State private var dragOffset: CGFloat = 0
 
@@ -21,8 +21,12 @@ struct ContentView: View {
             if let region = viewModel.visibleRegion {
                 MapView(
                     region: Binding(
-                        get: { region },
-                        set: { viewModel.visibleRegion = $0 }
+                        get: { viewModel.visibleRegion ?? MKCoordinateRegion() },
+                        set: { newRegion in
+                            if !areRegionsEqual(region1: newRegion, region2: viewModel.visibleRegion) {
+                                viewModel.visibleRegion = newRegion
+                            }
+                        }
                     ),
                     overlays: viewModel.overlays,
                     annotations: viewModel.annotations,
@@ -62,7 +66,7 @@ struct ContentView: View {
                             }
                         }
                 )
-            
+
             // Buttons and dropdown
             buttonsAndDropdownOverlay()
                 .offset(y: cardPosition - UIScreen.main.bounds.height + 75 + dragOffset)
@@ -73,22 +77,52 @@ struct ContentView: View {
         }
         .onReceive(locationManager.$lastLocation) { newLocation in
             if let location = newLocation {
-                viewModel.visibleRegion = MKCoordinateRegion(
-                    center: location,
-                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                )
+                handleLocationUpdate(location)
             }
         }
     }
 
+    private func areRegionsEqual(region1: MKCoordinateRegion?, region2: MKCoordinateRegion?) -> Bool {
+        guard let region1 = region1, let region2 = region2 else { return false }
+        let epsilon = 0.00001
+        return abs(region1.center.latitude - region2.center.latitude) < epsilon &&
+               abs(region1.center.longitude - region2.center.longitude) < epsilon &&
+               abs(region1.span.latitudeDelta - region2.span.latitudeDelta) < epsilon &&
+               abs(region1.span.longitudeDelta - region2.span.longitudeDelta) < epsilon
+    }
+    
     private func updateRegionToUserLocation() {
         if let userLocation = locationManager.lastLocation {
             viewModel.visibleRegion = MKCoordinateRegion(
                 center: userLocation,
-                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005) // Zoomed-in view
             )
         } else {
-            locationManager.requestCurrentLocation()
+            locationManager.startContinuousLocationUpdates()
+        }
+    }
+
+    private func handleLocationUpdate(_ location: CLLocationCoordinate2D) {
+        if viewModel.selectedPolygon == nil {
+            guard let currentRegion = viewModel.visibleRegion else {
+                viewModel.visibleRegion = MKCoordinateRegion(
+                    center: location,
+                    span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                )
+                return
+            }
+
+            let visibleMapRect = currentRegion.toMKMapRect()
+            let currentLocationPoint = MKMapPoint(location)
+
+            if !visibleMapRect.contains(currentLocationPoint) {
+                withAnimation {
+                    viewModel.visibleRegion = MKCoordinateRegion(
+                        center: location,
+                        span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                    )
+                }
+            }
         }
     }
 
@@ -163,9 +197,7 @@ struct ContentView: View {
 
             Button(action: {
                 viewModel.centerToCurrentLocation()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    recenterTrigger.toggle()
-                }
+                locationManager.startContinuousLocationUpdates()
             }) {
                 Image(systemName: "location.fill")
                     .foregroundColor(.white)
